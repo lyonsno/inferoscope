@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inferoscope.local/schema/v0.1.0/raw_trace_event.schema.json",
+  "title": "inferoscope raw trace event v0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "schema_version",
+    "run_id",
+    "token_index",
+    "token_id",
+    "token_text",
+    "context_length",
+    "timing_ms",
+    "layers"
+  ],
+  "properties": {
+    "event_type": {
+      "const": "token_complete"
+    },
+    "schema_version": {
+      "const": "raw/v0.1.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "token_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "token_id": {
+      "type": "integer"
+    },
+    "token_text": {
+      "type": "string"
+    },
+    "context_length": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timing_ms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decode_start",
+        "decode_end",
+        "decode_duration"
+      ],
+      "properties": {
+        "decode_start": {
+          "type": "number"
+        },
+        "decode_end": {
+          "type": "number"
+        },
+        "decode_duration": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    }
+  },
+  "$defs": {
+    "probability": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layer_index",
+        "layer_kind",
+        "num_total_experts",
+        "num_active_experts",
+        "router_probs",
+        "topk_indices",
+        "topk_probs",
+        "entropy",
+        "normalized_entropy",
+        "top1_prob",
+        "top1_top2_margin"
+      ],
+      "properties": {
+        "layer_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layer_kind": {
+          "type": "string",
+          "enum": [
+            "moe",
+            "dense",
+            "hybrid"
+          ]
+        },
+        "num_total_experts": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The full routing vector should have exactly this many entries."
+        },
+        "num_active_experts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The top-k arrays should each have exactly this many entries."
+        },
+        "router_probs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/probability"
+          },
+          "description": "Full routing distribution for the layer. Its length should equal num_total_experts and its values should sum to 1.0 within floating-point tolerance."
+        },
+        "topk_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Indices of the selected experts ordered from highest to lowest router probability."
+        },
+        "topk_probs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/probability"
+          },
+          "description": "Router probabilities corresponding to topk_indices. The array should have the same length as topk_indices and num_active_experts."
+        },
+        "entropy": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Entropy in nats: -sum_i p_i ln(p_i)."
+        },
+        "normalized_entropy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "entropy / ln(num_total_experts), using natural logarithms."
+        },
+        "top1_prob": {
+          "$ref": "#/$defs/probability"
+        },
+        "top1_top2_margin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

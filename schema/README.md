@@ -8,6 +8,8 @@ The canonical schema definitions should live here as versioned JSON Schema files
 
 Implementation-local adapters are fine, but they should follow the contracts defined under `schema/`.
 
+For `v0.1.0`, only the raw trace, manifest, and layout contracts should be treated as stable test targets. Derived and support artifacts are still machine-checkable, but their internal payload semantics remain provisional until motif logic hardens.
+
 ## Layout
 
 Each schema version gets its own directory:
@@ -21,6 +23,9 @@ Within a version directory, keep raw, derived, and support artifacts separate in
 
 ## Compatibility
 
+- In-payload `schema_version` fields are authoritative for validation.
+- Filenames are storage conventions only and should not be treated as version authority.
+- Manifest-recorded versions are bundle-level expectations and should match the payload versions for a valid run bundle.
 - Raw trace schemas and derived schemas are versioned independently in their payloads.
 - Breaking field changes should increment the schema version.
 - Derived outputs should also carry a derivation version because motif logic may evolve without changing the raw trace contract.
@@ -36,4 +41,4 @@ The initial `v0.1.0` schema set is expected to cover:
 - `contingency.schema.json`
 - `layout.schema.json`
 
-See [`schema/v0.1.0/README.md`](/Users/noahlyons/dev/inferoscope/schema/v0.1.0/README.md) for the first version scope.
+See [`schema/v0.1.0/README.md`](/Users/noahlyons/dev/inferoscope/schema/v0.1.0/README.md) for the first version scope and stability notes.

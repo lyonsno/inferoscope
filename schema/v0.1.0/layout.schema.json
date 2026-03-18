@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inferoscope.local/schema/v0.1.0/layout.schema.json",
+  "title": "inferoscope layout v0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "layout_id",
+    "layers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "layout/v0.1.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layout_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layout_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/layer_layout"
+      }
+    }
+  },
+  "$defs": {
+    "expert_position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expert_index",
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "expert_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      }
+    },
+    "layer_layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layer_index",
+        "positions"
+      ],
+      "properties": {
+        "layer_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "positions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/expert_position"
+          }
+        }
+      }
+    }
+  }
+}

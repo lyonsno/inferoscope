@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inferoscope.local/schema/v0.1.0/motif_ledger.schema.json",
+  "title": "inferoscope motif ledger v0.1.0 provisional",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "derivation_version",
+    "ledger_payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "motif_ledger/v0.1.0-provisional"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "derivation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ledger_payload": {
+      "type": "object",
+      "description": "Provisional motif-ledger payload. Internal fields are intentionally not fixed in v0.1.0."
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Schema v0.1.0
 
-This directory is reserved for the canonical `v0.1.0` artifact schemas.
+This directory contains the canonical `v0.1.0` artifact schemas.
 
 The intended scope of this first version is:
 
@@ -16,6 +16,7 @@ The first implementation target is aligned with [`docs/v0.1.0_proposal.md`](/Use
 ## Notes
 
 - `raw_trace_event.schema.json` should define the `token_complete` event shape used by replay-first capture.
-- `derived_event.schema.json` should define motif assignments, fit, novelty, and derivation-version metadata.
+- `manifest.schema.json`, `raw_trace_event.schema.json`, and `layout.schema.json` are the stable `v0.1.0` test targets.
+- `derived_event.schema.json`, `motif_ledger.schema.json`, and `contingency.schema.json` are intentionally provisional in `v0.1.0`: they define a machine-checkable envelope while leaving internal motif payload semantics open.
 - `layout.schema.json` should remain separate from trace schemas so geometry can evolve without rewriting runs.
 - `v0.1.0` should preserve the full routing probability vector in raw trace artifacts for auditability.
