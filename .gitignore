@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.pyc
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Environment files
+.env
+.env.*
+
+# Coverage / test output
+.coverage
+coverage/
+htmlcov/
+
+# Project-generated artifacts
+runs/
