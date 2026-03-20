@@ -8,6 +8,7 @@
     "schema_version",
     "run_id",
     "derivation_version",
+    "derivation_config_id",
     "ledger_payload"
   ],
   "properties": {
@@ -19,6 +20,10 @@
       "minLength": 1
     },
     "derivation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "derivation_config_id": {
       "type": "string",
       "minLength": 1
     },

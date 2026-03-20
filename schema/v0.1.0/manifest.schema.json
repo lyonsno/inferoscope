@@ -11,7 +11,9 @@
     "model_id",
     "tokenizer_id",
     "prompt",
-    "artifact_versions"
+    "artifact_versions",
+    "derivation_version",
+    "derivation_config_id"
   ],
   "properties": {
     "schema_version": {
@@ -56,6 +58,14 @@
     },
     "capture_config": {
       "type": "object"
+    },
+    "derivation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "derivation_config_id": {
+      "type": "string",
+      "minLength": 1
     },
     "artifact_versions": {
       "type": "object",

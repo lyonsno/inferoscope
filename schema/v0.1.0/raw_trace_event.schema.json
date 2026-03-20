@@ -99,9 +99,7 @@
         "layer_kind": {
           "type": "string",
           "enum": [
-            "moe",
-            "dense",
-            "hybrid"
+            "moe"
           ]
         },
         "num_total_experts": {

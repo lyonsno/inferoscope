@@ -10,6 +10,8 @@ Implementation-local adapters are fine, but they should follow the contracts def
 
 For `v0.1.0`, only the raw trace, manifest, and layout contracts should be treated as stable test targets. Derived and support artifacts are still machine-checkable, but their internal payload semantics remain provisional until motif logic hardens.
 
+JSON Schema is responsible for artifact shape and versioned format contracts. Replay-critical cross-field and cross-file rules that are awkward or impossible to express cleanly in JSON Schema should be enforced by a separate semantic validation layer.
+
 ## Layout
 
 Each schema version gets its own directory:
