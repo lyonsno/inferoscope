@@ -26,6 +26,25 @@ def _approx_equal(left: float, right: float, *, tolerance: float = FLOAT_TOLERAN
     return abs(left - right) <= tolerance
 
 
+def _append_run_id_mismatch_issue(
+    issues: list[ValidationIssue],
+    *,
+    artifact_name: str,
+    expected_run_id: Any,
+    actual_run_id: Any,
+) -> None:
+    if expected_run_id is None or actual_run_id is None or actual_run_id == expected_run_id:
+        return
+
+    issues.append(
+        _issue(
+            "run_bundle",
+            "run_id_mismatch",
+            f"{artifact_name} run_id must match the manifest run_id.",
+        )
+    )
+
+
 def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]:
     """Return semantic validation issues for a raw token-complete event."""
 
@@ -70,6 +89,19 @@ def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]
                 )
             )
 
+        if (
+            isinstance(num_total_experts, int)
+            and isinstance(num_active_experts, int)
+            and num_active_experts > num_total_experts
+        ):
+            issues.append(
+                _issue(
+                    scope,
+                    "num_active_experts_exceeds_num_total_experts",
+                    "num_active_experts must not exceed num_total_experts.",
+                )
+            )
+
         if isinstance(num_active_experts, int):
             if len(topk_indices) != num_active_experts or len(topk_probs) != num_active_experts:
                 issues.append(
@@ -88,6 +120,21 @@ def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]
                     "topk_indices and topk_probs must have the same length.",
                 )
             )
+
+        seen_topk_indices: set[int] = set()
+        for expert_index in topk_indices:
+            if not isinstance(expert_index, int):
+                continue
+            if expert_index in seen_topk_indices:
+                issues.append(
+                    _issue(
+                        scope,
+                        "duplicate_topk_index",
+                        "topk_indices must not repeat expert indices within a layer.",
+                    )
+                )
+                break
+            seen_topk_indices.add(expert_index)
 
         if isinstance(num_total_experts, int):
             for expert_index in topk_indices:
@@ -276,9 +323,48 @@ def validate_run_bundle_semantics(
 
     issues.extend(validate_manifest_semantics(manifest, derived_artifacts_present=bool(derived_events)))
 
+    expected_run_id = manifest.get("run_id")
+    raw_token_indices = [event.get("token_index") for event in raw_events]
+    raw_token_index_set: set[int] = set()
+
+    for token_index in raw_token_indices:
+        if not isinstance(token_index, int):
+            continue
+        if token_index in raw_token_index_set:
+            issues.append(
+                _issue(
+                    "run_bundle",
+                    "duplicate_raw_token_index",
+                    "raw events must not repeat token_index values within a bundle.",
+                )
+            )
+            break
+        raw_token_index_set.add(token_index)
+
+    if raw_token_indices != list(range(len(raw_token_indices))):
+        issues.append(
+            _issue(
+                "run_bundle",
+                "raw_token_index_sequence_invalid",
+                "raw events must appear in contiguous token_index order starting at 0.",
+            )
+        )
+
     for event in raw_events:
+        _append_run_id_mismatch_issue(
+            issues,
+            artifact_name="raw_event",
+            expected_run_id=expected_run_id,
+            actual_run_id=event.get("run_id"),
+        )
         issues.extend(validate_raw_event_semantics(event))
 
+    _append_run_id_mismatch_issue(
+        issues,
+        artifact_name="layout",
+        expected_run_id=expected_run_id,
+        actual_run_id=layout.get("run_id"),
+    )
     issues.extend(validate_layout_semantics(layout))
 
     expected_counts, raw_count_issues = _expected_layout_expert_counts(raw_events)
@@ -299,9 +385,27 @@ def validate_run_bundle_semantics(
                     f"layout layer {layer_index} must contain {num_total_experts} expert positions.",
                 )
             )
+        if layout_layer is None:
+            continue
+
+        actual_expert_indices = {
+            position.get("expert_index")
+            for position in layout_layer.get("positions", [])
+            if isinstance(position.get("expert_index"), int)
+        }
+        expected_expert_indices = set(range(num_total_experts))
+        if actual_expert_indices != expected_expert_indices:
+            issues.append(
+                _issue(
+                    "run_bundle",
+                    "layout_expert_index_set_mismatch",
+                    f"layout layer {layer_index} must cover expert indices 0 through {num_total_experts - 1}.",
+                )
+            )
 
     expected_derivation_version = manifest.get("derivation_version")
     expected_derivation_config_id = manifest.get("derivation_config_id")
+    derived_token_index_set: set[int] = set()
 
     artifacts_to_compare: list[tuple[str, dict[str, Any]]] = []
     for event in derived_events or []:
@@ -312,6 +416,12 @@ def validate_run_bundle_semantics(
         artifacts_to_compare.append(("contingency", contingency))
 
     for artifact_name, artifact in artifacts_to_compare:
+        _append_run_id_mismatch_issue(
+            issues,
+            artifact_name=artifact_name,
+            expected_run_id=expected_run_id,
+            actual_run_id=artifact.get("run_id"),
+        )
         derivation_version, derivation_config_id = _artifact_derivation_metadata(artifact)
         if (
             expected_derivation_version is not None
@@ -338,5 +448,27 @@ def validate_run_bundle_semantics(
                     f"{artifact_name} derivation_config_id must match the manifest derivation_config_id.",
                 )
             )
+
+        if artifact_name == "derived_event":
+            token_index = artifact.get("token_index")
+            if isinstance(token_index, int):
+                if token_index in derived_token_index_set:
+                    issues.append(
+                        _issue(
+                            "run_bundle",
+                            "duplicate_derived_token_index",
+                            "derived events must not repeat token_index values within a bundle.",
+                        )
+                    )
+                else:
+                    derived_token_index_set.add(token_index)
+            if isinstance(token_index, int) and token_index not in raw_token_indices:
+                issues.append(
+                    _issue(
+                        "run_bundle",
+                        "derived_token_index_missing_from_raw",
+                        "derived_event token_index must exist in the raw trace.",
+                    )
+                )
 
     return issues

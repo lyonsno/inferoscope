@@ -103,6 +103,26 @@ def make_valid_derived_event() -> dict:
     }
 
 
+def make_valid_motif_ledger() -> dict:
+    return {
+        "schema_version": "motif_ledger/v0.1.0-provisional",
+        "run_id": "run-001",
+        "derivation_version": "motifs/v0.1.0-alpha",
+        "derivation_config_id": "motifs/default-alpha",
+        "ledger_payload": {},
+    }
+
+
+def make_valid_contingency() -> dict:
+    return {
+        "schema_version": "contingency/v0.1.0-provisional",
+        "run_id": "run-001",
+        "derivation_version": "motifs/v0.1.0-alpha",
+        "derivation_config_id": "motifs/default-alpha",
+        "contingency_payload": {},
+    }
+
+
 class SemanticValidationApiTests(unittest.TestCase):
     def test_validation_issue_dataclass_is_constructible(self) -> None:
         issue = ValidationIssue(
@@ -145,6 +165,31 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("decode_duration_mismatch", {issue.code for issue in issues})
 
+    def test_validate_raw_event_semantics_reports_num_active_experts_exceeds_total(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["num_active_experts"] = 5
+        # This fixture is intentionally invalid in more than one way; we are
+        # specifically pinning the dedicated count-overflow diagnostic.
+        event["layers"][0]["topk_indices"] = [0, 1, 2, 3, 3]
+        event["layers"][0]["topk_probs"] = [0.6, 0.3, 0.1, 0.0, 0.0]
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn(
+            "num_active_experts_exceeds_num_total_experts",
+            {issue.code for issue in issues},
+        )
+
+    def test_validate_raw_event_semantics_reports_duplicate_topk_index(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["num_active_experts"] = 4
+        event["layers"][0]["topk_indices"] = [0, 1, 1, 2]
+        event["layers"][0]["topk_probs"] = [0.6, 0.3, 0.3, 0.1]
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("duplicate_topk_index", {issue.code for issue in issues})
+
 class LayoutSemanticValidationTests(unittest.TestCase):
     def test_validate_layout_semantics_reports_duplicate_expert_index(self) -> None:
         layout = make_valid_layout()
@@ -156,6 +201,67 @@ class LayoutSemanticValidationTests(unittest.TestCase):
 
 
 class RunBundleSemanticValidationTests(unittest.TestCase):
+    def test_validate_run_bundle_semantics_reports_raw_event_run_id_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        raw_events[0]["run_id"] = "other-run"
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_layout_run_id_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        layout["run_id"] = "other-run"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_derived_event_run_id_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        derived_events = [make_valid_derived_event()]
+        derived_events[0]["run_id"] = "other-run"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            derived_events=copy.deepcopy(derived_events),
+        )
+
+        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_support_artifact_run_id_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        motif_ledger = make_valid_motif_ledger()
+        motif_ledger["run_id"] = "other-run"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            motif_ledger=motif_ledger,
+            contingency=make_valid_contingency(),
+        )
+
+        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+
     def test_validate_run_bundle_semantics_reports_layout_expert_count_mismatch(self) -> None:
         manifest = make_valid_manifest()
         raw_events = [make_valid_raw_event()]
@@ -170,6 +276,58 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("layout_expert_count_mismatch", {issue.code for issue in issues})
 
+    def test_validate_run_bundle_semantics_reports_duplicate_raw_token_index(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event(), copy.deepcopy(make_valid_raw_event())]
+        raw_events[1]["token_id"] = 43
+        raw_events[1]["token_text"] = "world"
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("duplicate_raw_token_index", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_non_monotonic_raw_token_sequence(self) -> None:
+        manifest = make_valid_manifest()
+        first = make_valid_raw_event()
+        first["token_index"] = 1
+        second = copy.deepcopy(make_valid_raw_event())
+        second["token_index"] = 0
+        second["token_id"] = 43
+        second["token_text"] = "world"
+        raw_events = [first, second]
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("raw_token_index_sequence_invalid", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_gapped_raw_token_sequence(self) -> None:
+        manifest = make_valid_manifest()
+        first = make_valid_raw_event()
+        second = copy.deepcopy(make_valid_raw_event())
+        second["token_index"] = 2
+        second["token_id"] = 43
+        second["token_text"] = "world"
+        raw_events = [first, second]
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("raw_token_index_sequence_invalid", {issue.code for issue in issues})
+
     def test_validate_run_bundle_semantics_requires_matching_derivation_metadata_across_bundle(self) -> None:
         manifest = make_valid_manifest()
         raw_events = [make_valid_raw_event()]
@@ -182,23 +340,68 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
             raw_events,
             layout,
             derived_events=copy.deepcopy(derived_events),
-            motif_ledger={
-                "schema_version": "motif_ledger/v0.1.0-provisional",
-                "run_id": "run-001",
-                "derivation_version": "motifs/v0.1.0-alpha",
-                "derivation_config_id": "motifs/default-alpha",
-                "ledger_payload": {},
-            },
-            contingency={
-                "schema_version": "contingency/v0.1.0-provisional",
-                "run_id": "run-001",
-                "derivation_version": "motifs/v0.1.0-alpha",
-                "derivation_config_id": "motifs/default-alpha",
-                "contingency_payload": {},
-            },
+            motif_ledger=make_valid_motif_ledger(),
+            contingency=make_valid_contingency(),
         )
 
         self.assertIn("derivation_config_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_orphan_derived_token_index(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        derived_events = [make_valid_derived_event()]
+        derived_events[0]["token_index"] = 99
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            derived_events=copy.deepcopy(derived_events),
+        )
+
+        self.assertIn("derived_token_index_missing_from_raw", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_duplicate_derived_token_index(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        derived_events = [make_valid_derived_event(), copy.deepcopy(make_valid_derived_event())]
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            derived_events=copy.deepcopy(derived_events),
+        )
+
+        self.assertIn("duplicate_derived_token_index", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_layout_expert_index_set_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        layout["layers"][0]["positions"][3]["expert_index"] = 99
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("layout_expert_index_set_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_accepts_valid_bundle_with_optional_artifacts(self) -> None:
+        issues = validate_run_bundle_semantics(
+            make_valid_manifest(),
+            [make_valid_raw_event()],
+            make_valid_layout(),
+            derived_events=[make_valid_derived_event()],
+            motif_ledger=make_valid_motif_ledger(),
+            contingency=make_valid_contingency(),
+        )
+
+        self.assertEqual(issues, [])
 
 
 if __name__ == "__main__":

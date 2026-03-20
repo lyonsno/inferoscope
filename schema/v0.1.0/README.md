@@ -19,5 +19,8 @@ The first implementation target is aligned with [`docs/v0.1.0_proposal.md`](/Use
 - `manifest.schema.json`, `raw_trace_event.schema.json`, and `layout.schema.json` are the stable `v0.1.0` test targets.
 - `derived_event.schema.json`, `motif_ledger.schema.json`, and `contingency.schema.json` are intentionally provisional in `v0.1.0`: they define a machine-checkable envelope while leaving internal motif payload semantics open.
 - Replay-critical invariants that span fields or files should be enforced by semantic validation in addition to JSON Schema.
+- The `v0.1.0` semantic replay target is a strict `full_run` bundle, not a clipped segment or live stream snapshot.
 - `layout.schema.json` should remain separate from trace schemas so geometry can evolve without rewriting runs.
 - `v0.1.0` should preserve the full routing probability vector in raw trace artifacts for auditability.
+
+See [`docs/bundle_profiles.md`](/Users/noahlyons/dev/inferoscope/docs/bundle_profiles.md) for the planned split between `full_run`, `contiguous_segment`, and future live-state validation.

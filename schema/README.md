@@ -12,6 +12,8 @@ For `v0.1.0`, only the raw trace, manifest, and layout contracts should be treat
 
 JSON Schema is responsible for artifact shape and versioned format contracts. Replay-critical cross-field and cross-file rules that are awkward or impossible to express cleanly in JSON Schema should be enforced by a separate semantic validation layer.
 
+For `v0.1.0`, the stable semantic target is a strict `full_run` replay bundle. Future replayable windows and live-state artifacts should be modeled as explicit bundle profiles or separate artifact classes rather than by silently weakening the `full_run` rules.
+
 ## Layout
 
 Each schema version gets its own directory:
@@ -44,3 +46,4 @@ The initial `v0.1.0` schema set is expected to cover:
 - `layout.schema.json`
 
 See [`schema/v0.1.0/README.md`](/Users/noahlyons/dev/inferoscope/schema/v0.1.0/README.md) for the first version scope and stability notes.
+See [`docs/bundle_profiles.md`](/Users/noahlyons/dev/inferoscope/docs/bundle_profiles.md) for the planned bundle-profile split.
