@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
 import math
+
+from inferoscope.formats import is_rfc3339_datetime
 
 
 def _validate_created_at(created_at: str) -> None:
     if not created_at:
         raise ValueError("created_at must not be empty")
 
-    normalized = created_at[:-1] + "+00:00" if created_at.endswith("Z") else created_at
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError as exc:
-        raise ValueError("created_at must be a valid ISO 8601 date-time string") from exc
-
-    if parsed.tzinfo is None:
-        raise ValueError("created_at must include timezone information")
+    if not is_rfc3339_datetime(created_at):
+        raise ValueError("created_at must be a valid RFC3339 date-time string")
 
 
 def build_manifest(

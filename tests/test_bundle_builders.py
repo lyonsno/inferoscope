@@ -64,6 +64,68 @@ class BuildManifestTests(unittest.TestCase):
                 derivation_config_id="motifs/default-alpha",
             )
 
+    def test_build_manifest_rejects_non_rfc3339_created_at(self) -> None:
+        with self.assertRaisesRegex(ValueError, "created_at"):
+            build_manifest(
+                run_id="run-001",
+                created_at="2026-03-20 12:00:00+00:00",
+                model_id="allenai/OLMoE-1B-7B-0125",
+                tokenizer_id="allenai/OLMoE-1B-7B-0125",
+                prompt_text="hello",
+                derivation_version="motifs/v0.1.0-alpha",
+                derivation_config_id="motifs/default-alpha",
+            )
+
+    def test_build_manifest_accepts_lowercase_rfc3339_created_at(self) -> None:
+        manifest = build_manifest(
+            run_id="run-001",
+            created_at="2026-03-20t12:00:00z",
+            model_id="allenai/OLMoE-1B-7B-0125",
+            tokenizer_id="allenai/OLMoE-1B-7B-0125",
+            prompt_text="hello",
+            derivation_version="motifs/v0.1.0-alpha",
+            derivation_config_id="motifs/default-alpha",
+        )
+
+        self.assertEqual(manifest["created_at"], "2026-03-20t12:00:00z")
+
+    def test_build_manifest_accepts_rfc3339_leap_second_created_at(self) -> None:
+        manifest = build_manifest(
+            run_id="run-001",
+            created_at="1990-12-31T23:59:60Z",
+            model_id="allenai/OLMoE-1B-7B-0125",
+            tokenizer_id="allenai/OLMoE-1B-7B-0125",
+            prompt_text="hello",
+            derivation_version="motifs/v0.1.0-alpha",
+            derivation_config_id="motifs/default-alpha",
+        )
+
+        self.assertEqual(manifest["created_at"], "1990-12-31T23:59:60Z")
+
+    def test_build_manifest_rejects_impossible_rfc3339_leap_second(self) -> None:
+        with self.assertRaisesRegex(ValueError, "created_at"):
+            build_manifest(
+                run_id="run-001",
+                created_at="2026-03-20T12:34:60Z",
+                model_id="allenai/OLMoE-1B-7B-0125",
+                tokenizer_id="allenai/OLMoE-1B-7B-0125",
+                prompt_text="hello",
+                derivation_version="motifs/v0.1.0-alpha",
+                derivation_config_id="motifs/default-alpha",
+            )
+
+    def test_build_manifest_rejects_invalid_rfc3339_offset_bounds(self) -> None:
+        with self.assertRaisesRegex(ValueError, "created_at"):
+            build_manifest(
+                run_id="run-001",
+                created_at="2026-03-20T12:00:00+00:60",
+                model_id="allenai/OLMoE-1B-7B-0125",
+                tokenizer_id="allenai/OLMoE-1B-7B-0125",
+                prompt_text="hello",
+                derivation_version="motifs/v0.1.0-alpha",
+                derivation_config_id="motifs/default-alpha",
+            )
+
 
 class BuildLayerGridLayoutTests(unittest.TestCase):
     def test_build_layer_grid_layout_emits_deterministic_positions(self) -> None:
