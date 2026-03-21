@@ -196,6 +196,30 @@ class BuildTokenCompleteEventTests(unittest.TestCase):
                 ],
             )
 
+    def test_build_token_complete_event_rejects_non_finite_timing_values(self) -> None:
+        for field_name in ["decode_start_ms", "decode_end_ms"]:
+            for bad_value in [float("inf"), float("-inf"), float("nan")]:
+                with self.subTest(field_name=field_name, bad_value=bad_value):
+                    kwargs = {
+                        "run_id": "run-001",
+                        "token_index": 7,
+                        "token_id": 42,
+                        "token_text": "hello",
+                        "context_length": 99,
+                        "decode_start_ms": 10.0,
+                        "decode_end_ms": 25.5,
+                        "layer_inputs": [
+                            MoELayerCaptureInput(
+                                layer_index=0,
+                                router_logits=[2.0, 1.0],
+                                num_active_experts=1,
+                            )
+                        ],
+                    }
+                    kwargs[field_name] = bad_value
+                    with self.assertRaisesRegex(ValueError, "finite"):
+                        build_token_complete_event(**kwargs)
+
     def test_build_token_complete_event_rejects_duplicate_layer_index(self) -> None:
         with self.assertRaisesRegex(ValueError, "duplicate"):
             build_token_complete_event(

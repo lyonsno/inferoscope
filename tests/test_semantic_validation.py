@@ -190,6 +190,16 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("duplicate_topk_index", {issue.code for issue in issues})
 
+    def test_validate_raw_event_semantics_reports_duplicate_layer_index(self) -> None:
+        event = make_valid_raw_event()
+        duplicate_layer = copy.deepcopy(event["layers"][0])
+        duplicate_layer["top1_prob"] = 0.55
+        event["layers"].append(duplicate_layer)
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("duplicate_layer_index", {issue.code for issue in issues})
+
 class LayoutSemanticValidationTests(unittest.TestCase):
     def test_validate_layout_semantics_reports_duplicate_expert_index(self) -> None:
         layout = make_valid_layout()
@@ -201,6 +211,96 @@ class LayoutSemanticValidationTests(unittest.TestCase):
 
 
 class RunBundleSemanticValidationTests(unittest.TestCase):
+    def test_validate_run_bundle_semantics_reports_raw_event_schema_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        raw_events[0]["schema_version"] = "raw/v9.9.9"
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("raw_event_schema_version_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_uses_manifest_expected_raw_event_schema_version(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["artifact_versions"]["raw_event_schema_version"] = "raw/v9.9.9"
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("raw_event_schema_version_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_layout_schema_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        layout["schema_version"] = "layout/v9.9.9"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertIn("layout_schema_version_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_derived_event_schema_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        derived_events = [make_valid_derived_event()]
+        derived_events[0]["schema_version"] = "derived/v9.9.9"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            derived_events=copy.deepcopy(derived_events),
+        )
+
+        self.assertIn("derived_event_schema_version_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_motif_ledger_schema_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        motif_ledger = make_valid_motif_ledger()
+        motif_ledger["schema_version"] = "motif_ledger/v9.9.9"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            motif_ledger=motif_ledger,
+        )
+
+        self.assertIn("motif_ledger_schema_version_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_contingency_schema_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        contingency = make_valid_contingency()
+        contingency["schema_version"] = "contingency/v9.9.9"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            contingency=contingency,
+        )
+
+        self.assertIn("contingency_schema_version_mismatch", {issue.code for issue in issues})
+
     def test_validate_run_bundle_semantics_reports_raw_event_run_id_mismatch(self) -> None:
         manifest = make_valid_manifest()
         raw_events = [make_valid_raw_event()]

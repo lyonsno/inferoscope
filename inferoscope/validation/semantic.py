@@ -45,10 +45,38 @@ def _append_run_id_mismatch_issue(
     )
 
 
+def _append_schema_version_mismatch_issue(
+    issues: list[ValidationIssue],
+    *,
+    artifact_name: str,
+    manifest_key: str,
+    expected_schema_version: Any,
+    actual_schema_version: Any,
+) -> None:
+    if (
+        expected_schema_version is None
+        or actual_schema_version is None
+        or actual_schema_version == expected_schema_version
+    ):
+        return
+
+    issues.append(
+        _issue(
+            "run_bundle",
+            f"{artifact_name}_schema_version_mismatch",
+            (
+                f"{artifact_name} schema_version must match "
+                f"manifest artifact_versions.{manifest_key}."
+            ),
+        )
+    )
+
+
 def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]:
     """Return semantic validation issues for a raw token-complete event."""
 
     issues: list[ValidationIssue] = []
+    seen_layer_indices: set[int] = set()
 
     timing = event.get("timing_ms", {})
     decode_start = timing.get("decode_start")
@@ -73,6 +101,17 @@ def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]
     for layer in event.get("layers", []):
         layer_index = layer.get("layer_index", "?")
         scope = f"raw_event.layer[{layer_index}]"
+
+        if isinstance(layer_index, int):
+            if layer_index in seen_layer_indices:
+                issues.append(
+                    _issue(
+                        scope,
+                        "duplicate_layer_index",
+                        "raw event layers must not repeat layer_index values.",
+                    )
+                )
+            seen_layer_indices.add(layer_index)
 
         router_probs = layer.get("router_probs", [])
         topk_indices = layer.get("topk_indices", [])
@@ -323,6 +362,10 @@ def validate_run_bundle_semantics(
 
     issues.extend(validate_manifest_semantics(manifest, derived_artifacts_present=bool(derived_events)))
 
+    artifact_versions = manifest.get("artifact_versions")
+    if not isinstance(artifact_versions, dict):
+        artifact_versions = {}
+
     expected_run_id = manifest.get("run_id")
     raw_token_indices = [event.get("token_index") for event in raw_events]
     raw_token_index_set: set[int] = set()
@@ -351,6 +394,13 @@ def validate_run_bundle_semantics(
         )
 
     for event in raw_events:
+        _append_schema_version_mismatch_issue(
+            issues,
+            artifact_name="raw_event",
+            manifest_key="raw_event_schema_version",
+            expected_schema_version=artifact_versions.get("raw_event_schema_version"),
+            actual_schema_version=event.get("schema_version"),
+        )
         _append_run_id_mismatch_issue(
             issues,
             artifact_name="raw_event",
@@ -359,6 +409,13 @@ def validate_run_bundle_semantics(
         )
         issues.extend(validate_raw_event_semantics(event))
 
+    _append_schema_version_mismatch_issue(
+        issues,
+        artifact_name="layout",
+        manifest_key="layout_schema_version",
+        expected_schema_version=artifact_versions.get("layout_schema_version"),
+        actual_schema_version=layout.get("schema_version"),
+    )
     _append_run_id_mismatch_issue(
         issues,
         artifact_name="layout",
@@ -416,6 +473,14 @@ def validate_run_bundle_semantics(
         artifacts_to_compare.append(("contingency", contingency))
 
     for artifact_name, artifact in artifacts_to_compare:
+        manifest_key = f"{artifact_name}_schema_version"
+        _append_schema_version_mismatch_issue(
+            issues,
+            artifact_name=artifact_name,
+            manifest_key=manifest_key,
+            expected_schema_version=artifact_versions.get(manifest_key),
+            actual_schema_version=artifact.get("schema_version"),
+        )
         _append_run_id_mismatch_issue(
             issues,
             artifact_name=artifact_name,

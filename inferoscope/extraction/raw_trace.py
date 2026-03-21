@@ -91,6 +91,12 @@ def build_token_complete_event(
         raise ValueError("context_length must be non-negative")
     if not layer_inputs:
         raise ValueError("layer_inputs must not be empty")
+    for field_name, value in (
+        ("decode_start_ms", decode_start_ms),
+        ("decode_end_ms", decode_end_ms),
+    ):
+        if not math.isfinite(value):
+            raise ValueError(f"{field_name} must be finite")
     if decode_end_ms < decode_start_ms:
         raise ValueError("decode_end_ms must be greater than or equal to decode_start_ms")
     layer_indices = [layer_input.layer_index for layer_input in layer_inputs]
