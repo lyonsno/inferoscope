@@ -331,6 +331,30 @@ class RawEventSemanticValidationTests(unittest.TestCase):
         self.assertEqual(issues, [])
 
 class LayoutSemanticValidationTests(unittest.TestCase):
+    def test_validate_layout_semantics_accepts_valid_layout(self) -> None:
+        issues = validate_layout_semantics(make_valid_layout())
+
+        self.assertEqual(issues, [])
+
+    def test_validate_layout_semantics_reports_duplicate_layer_index(self) -> None:
+        layout = make_valid_layout()
+        duplicate_layer = copy.deepcopy(layout["layers"][0])
+        duplicate_layer["positions"][0]["x"] = 99.0
+        layout["layers"].append(duplicate_layer)
+
+        issues = validate_layout_semantics(layout)
+
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="layout.layer[0]",
+                    code="duplicate_layer_index",
+                    message="layout layers must not repeat layer_index values.",
+                )
+            ],
+        )
+
     def test_validate_layout_semantics_reports_duplicate_expert_index(self) -> None:
         layout = make_valid_layout()
         layout["layers"][0]["positions"][1]["expert_index"] = 0

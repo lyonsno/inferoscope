@@ -84,6 +84,17 @@ def make_valid_contingency() -> dict:
 
 
 class SchemaValidationBehaviorTests(unittest.TestCase):
+    def test_validate_artifact_schema_validates_manifest_datetime_format(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["created_at"] = "2026-03-20 12:00:00+00:00"
+
+        issues = validate_artifact_schema("manifest", manifest, location="manifest")
+
+        self.assertEqual(
+            issues,
+            ["manifest.created_at must match format 'date-time'"],
+        )
+
     def test_validate_artifact_schema_validates_single_manifest(self) -> None:
         manifest = make_valid_manifest()
         manifest["prompt"]["extra"] = "nope"
@@ -110,6 +121,17 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
         issues = validate_artifact_schema("layout", layout, location="layout")
 
         self.assertIn("layout.layers[0].positions[0].x is required", issues)
+
+    def test_validate_artifact_schema_validates_layout_min_length(self) -> None:
+        layout = make_valid_layout()
+        layout["layout_id"] = ""
+
+        issues = validate_artifact_schema("layout", layout, location="layout")
+
+        self.assertEqual(
+            issues,
+            ["layout.layout_id must have length >= 1"],
+        )
 
     def test_validate_artifact_schema_validates_single_derived_event(self) -> None:
         derived_event = make_valid_derived_event()
@@ -138,6 +160,28 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
     def test_validate_artifact_schema_rejects_unknown_artifact_names(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported artifact schema"):
             validate_artifact_schema("unknown", {})
+
+    def test_validate_artifact_schema_validates_manifest_type_union(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["seed"] = True
+
+        issues = validate_artifact_schema("manifest", manifest, location="manifest")
+
+        self.assertEqual(
+            issues,
+            ["manifest.seed must have schema type ['integer', 'null']"],
+        )
+
+    def test_validate_artifact_schema_validates_numeric_bounds(self) -> None:
+        raw_event = make_valid_raw_event()
+        raw_event["layers"][0]["normalized_entropy"] = 1.5
+
+        issues = validate_artifact_schema("raw_event", raw_event, location="raw_event")
+
+        self.assertEqual(
+            issues,
+            ["raw_event.layers[0].normalized_entropy must be <= 1"],
+        )
 
     def test_validate_run_bundle_schema_reports_type_mismatch(self) -> None:
         manifest = make_valid_manifest()

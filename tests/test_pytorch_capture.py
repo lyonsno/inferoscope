@@ -21,6 +21,24 @@ class FakeTensor:
 
 
 class BuildTokenCompleteEventFromPyTorchTests(unittest.TestCase):
+    def build_event(self, router_logits) -> dict:
+        return build_token_complete_event_from_pytorch(
+            run_id="run-001",
+            token_index=0,
+            token_id=42,
+            token_text="hello",
+            context_length=5,
+            decode_start_ms=10.0,
+            decode_end_ms=25.0,
+            layer_inputs=[
+                PyTorchMoELayerCaptureInput(
+                    layer_index=0,
+                    router_logits=router_logits,
+                    num_active_experts=1,
+                )
+            ],
+        )
+
     def test_build_token_complete_event_from_pytorch_accepts_tensor_like_router_logits(self) -> None:
         event = build_token_complete_event_from_pytorch(
             run_id="run-001",
@@ -67,6 +85,20 @@ class BuildTokenCompleteEventFromPyTorchTests(unittest.TestCase):
                     )
                 ],
             )
+
+    def test_build_token_complete_event_from_pytorch_rejects_non_sequence_logits(self) -> None:
+        with self.assertRaisesRegex(TypeError, "1D sequence"):
+            self.build_event(42)
+
+    def test_build_token_complete_event_from_pytorch_rejects_string_and_bytes_logits(self) -> None:
+        for router_logits in ["0123", b"0123", bytearray(b"0123")]:
+            with self.subTest(router_logits=type(router_logits).__name__):
+                with self.assertRaisesRegex(TypeError, "1D sequence"):
+                    self.build_event(router_logits)
+
+    def test_build_token_complete_event_from_pytorch_rejects_non_numeric_logits(self) -> None:
+        with self.assertRaisesRegex(TypeError, "numeric values"):
+            self.build_event(FakeTensor(["oops", 1.0]))
 
 
 if __name__ == "__main__":

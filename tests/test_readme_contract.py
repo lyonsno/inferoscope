@@ -1,4 +1,8 @@
+import os
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,6 +16,13 @@ def extract_section(readme_text: str, heading: str) -> str:
     if match is None:
         raise AssertionError(f"missing README section: {heading}")
     return match.group("body")
+
+
+def extract_first_python_block(section_text: str) -> str:
+    match = re.search(r"```python\n(?P<code>.*?)```", section_text, flags=re.DOTALL)
+    if match is None:
+        raise AssertionError("missing python code block in README section")
+    return match.group("code")
 
 
 class ReadmeContractTests(unittest.TestCase):
@@ -29,6 +40,26 @@ class ReadmeContractTests(unittest.TestCase):
             "PYTHONPATH" in quick_example or "repo root" in quick_example.lower(),
             msg="Quick Example should explain how to import inferoscope from a checkout",
         )
+
+    def test_quick_example_python_block_runs_successfully(self) -> None:
+        quick_example = extract_section((REPO_ROOT / "README.md").read_text(), "Quick Example")
+        script = extract_first_python_block(quick_example)
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(REPO_ROOT)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=tmpdir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(result.stdout.strip(), msg="README example should print its output")
+        self.assertIn("[0, 1]", result.stdout)
 
 
 if __name__ == "__main__":
