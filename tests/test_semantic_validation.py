@@ -1,4 +1,5 @@
 import copy
+import math
 import unittest
 
 from inferoscope.validation.semantic import (
@@ -199,6 +200,46 @@ class RawEventSemanticValidationTests(unittest.TestCase):
         issues = validate_raw_event_semantics(event)
 
         self.assertIn("duplicate_layer_index", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_topk_selection_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        layer = event["layers"][0]
+        layer["topk_indices"] = [1, 2]
+        layer["topk_probs"] = [0.3, 0.1]
+        layer["top1_prob"] = 0.6
+        layer["top1_top2_margin"] = 0.2
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("topk_selection_mismatch", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_non_positive_num_active_experts(self) -> None:
+        event = make_valid_raw_event()
+        layer = event["layers"][0]
+        layer["num_active_experts"] = 0
+        layer["topk_indices"] = []
+        layer["topk_probs"] = []
+        layer["top1_prob"] = 0.6
+        layer["top1_top2_margin"] = 0.0
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("num_active_experts_must_be_positive", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_accepts_tied_topk_in_any_order(self) -> None:
+        event = make_valid_raw_event()
+        layer = event["layers"][0]
+        layer["router_probs"] = [0.5, 0.5, 0.0, 0.0]
+        layer["topk_indices"] = [1, 0]
+        layer["topk_probs"] = [0.5, 0.5]
+        layer["top1_prob"] = 0.5
+        layer["top1_top2_margin"] = 0.0
+        layer["entropy"] = math.log(2.0)
+        layer["normalized_entropy"] = 0.5
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertEqual(issues, [])
 
 class LayoutSemanticValidationTests(unittest.TestCase):
     def test_validate_layout_semantics_reports_duplicate_expert_index(self) -> None:

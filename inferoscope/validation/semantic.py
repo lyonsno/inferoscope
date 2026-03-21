@@ -128,6 +128,15 @@ def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]
                 )
             )
 
+        if isinstance(num_active_experts, int) and num_active_experts < 1:
+            issues.append(
+                _issue(
+                    scope,
+                    "num_active_experts_must_be_positive",
+                    "num_active_experts must be at least 1.",
+                )
+            )
+
         if (
             isinstance(num_total_experts, int)
             and isinstance(num_active_experts, int)
@@ -210,6 +219,44 @@ def validate_raw_event_semantics(event: dict[str, Any]) -> list[ValidationIssue]
                             )
                         )
                         break
+
+        if (
+            isinstance(num_active_experts, int)
+            and num_active_experts >= 1
+            and isinstance(num_total_experts, int)
+            and len(router_probs) == num_total_experts
+            and len(topk_indices) == num_active_experts
+            and all(isinstance(expert_index, int) for expert_index in topk_indices)
+            and all(0 <= expert_index < num_total_experts for expert_index in topk_indices)
+            and len(set(topk_indices)) == len(topk_indices)
+        ):
+            selected_index_set = set(topk_indices)
+            selected_probs = [router_probs[expert_index] for expert_index in topk_indices]
+            has_non_increasing_prob_order = all(
+                selected_probs[index] + FLOAT_TOLERANCE >= selected_probs[index + 1]
+                for index in range(len(selected_probs) - 1)
+            )
+
+            omitted_probs = [
+                router_probs[expert_index]
+                for expert_index in range(num_total_experts)
+                if expert_index not in selected_index_set
+            ]
+            respects_topk_cutoff = True
+            if omitted_probs:
+                respects_topk_cutoff = max(omitted_probs) <= min(selected_probs) + FLOAT_TOLERANCE
+
+            if not has_non_increasing_prob_order or not respects_topk_cutoff:
+                issues.append(
+                    _issue(
+                        scope,
+                        "topk_selection_mismatch",
+                        (
+                            "topk_indices must identify a valid highest-probability top-k set "
+                            "ordered from highest to lowest router probability."
+                        ),
+                    )
+                )
 
         if router_probs:
             expected_top1 = max(router_probs)

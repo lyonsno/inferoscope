@@ -1,4 +1,5 @@
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -185,6 +186,64 @@ class WriteRunBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with self.assertRaisesRegex(ValueError, "run_id_mismatch"):
                 write_run_bundle(tmpdir, manifest, [raw_event], layout)
+
+    def test_write_run_bundle_rejects_topk_selection_mismatch(self) -> None:
+        raw_event = make_valid_raw_event()
+        layer = raw_event["layers"][0]
+        layer["topk_indices"] = [1, 2]
+        layer["topk_probs"] = [0.23688281808991013, 0.08714431874203257]
+        layer["top1_prob"] = 0.6439142598879724
+        layer["top1_top2_margin"] = 0.14973849934787756
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "topk_selection_mismatch"):
+                write_run_bundle(
+                    tmpdir,
+                    make_valid_manifest(),
+                    [raw_event],
+                    make_valid_layout(),
+                )
+
+    def test_write_run_bundle_rejects_non_positive_num_active_experts(self) -> None:
+        raw_event = make_valid_raw_event()
+        layer = raw_event["layers"][0]
+        layer["num_active_experts"] = 0
+        layer["topk_indices"] = []
+        layer["topk_probs"] = []
+        layer["top1_prob"] = 0.6439142598879724
+        layer["top1_top2_margin"] = 0.0
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "num_active_experts_must_be_positive"):
+                write_run_bundle(
+                    tmpdir,
+                    make_valid_manifest(),
+                    [raw_event],
+                    make_valid_layout(),
+                )
+
+    def test_write_run_bundle_accepts_tied_topk_in_any_order(self) -> None:
+        raw_event = make_valid_raw_event()
+        layer = raw_event["layers"][0]
+        layer["router_probs"] = [0.5, 0.5, 0.0, 0.0]
+        layer["topk_indices"] = [1, 0]
+        layer["topk_probs"] = [0.5, 0.5]
+        layer["top1_prob"] = 0.5
+        layer["top1_top2_margin"] = 0.0
+        layer["entropy"] = math.log(2.0)
+        layer["normalized_entropy"] = 0.5
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = write_run_bundle(
+                tmpdir,
+                make_valid_manifest(),
+                [raw_event],
+                make_valid_layout(),
+            )
+
+            bundle = load_run_bundle(run_dir)
+
+            self.assertEqual(bundle["raw_events"][0]["layers"][0]["topk_indices"], [1, 0])
 
     def test_write_and_load_run_bundle_round_trip_optional_artifacts(self) -> None:
         derived_events = [
