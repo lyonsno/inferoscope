@@ -109,8 +109,8 @@
         },
         "num_active_experts": {
           "type": "integer",
-          "minimum": 0,
-          "description": "The top-k arrays should each have exactly this many entries."
+          "minimum": 1,
+          "description": "The top-k arrays should each have exactly this many entries, and at least one expert must be selected."
         },
         "router_probs": {
           "type": "array",

@@ -39,6 +39,16 @@ class SchemaContractAlignmentTests(unittest.TestCase):
 
         self.assertEqual(layer_kind_enum, ["moe"])
 
+    def test_raw_trace_schema_requires_positive_num_active_experts(self) -> None:
+        canonical_schema = load_json("schema/v0.1.0/raw_trace_event.schema.json")
+        packaged_schema = load_json("inferoscope/validation/schemas/v0.1.0/raw_trace_event.schema.json")
+
+        canonical_minimum = canonical_schema["$defs"]["layer"]["properties"]["num_active_experts"]["minimum"]
+        packaged_minimum = packaged_schema["$defs"]["layer"]["properties"]["num_active_experts"]["minimum"]
+
+        self.assertEqual(canonical_minimum, 1)
+        self.assertEqual(packaged_minimum, 1)
+
     def test_manifest_schema_has_stable_top_level_contract(self) -> None:
         schema = load_json("schema/v0.1.0/manifest.schema.json")
 

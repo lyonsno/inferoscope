@@ -214,7 +214,7 @@ class WriteRunBundleTests(unittest.TestCase):
         layer["top1_top2_margin"] = 0.0
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            with self.assertRaisesRegex(ValueError, "num_active_experts_must_be_positive"):
+            with self.assertRaisesRegex(ValueError, r"num_active_experts.*>= 1"):
                 write_run_bundle(
                     tmpdir,
                     make_valid_manifest(),
