@@ -12,6 +12,14 @@ from inferoscope.formats import is_rfc3339_datetime
 
 
 _SCHEMA_DIR = Path(__file__).with_name("schemas") / "v0.1.0"
+_ARTIFACT_SCHEMA_FILENAMES = {
+    "manifest": "manifest.schema.json",
+    "raw_event": "raw_trace_event.schema.json",
+    "layout": "layout.schema.json",
+    "derived_event": "derived_event.schema.json",
+    "motif_ledger": "motif_ledger.schema.json",
+    "contingency": "contingency.schema.json",
+}
 
 
 @lru_cache(maxsize=None)
@@ -156,6 +164,28 @@ def _validate_against_schema(
     return issues
 
 
+def validate_artifact_schema(
+    artifact_name: str,
+    payload: dict[str, Any],
+    *,
+    location: str | None = None,
+) -> list[str]:
+    """Return schema-validation issues for a single inferoscope artifact."""
+
+    schema_filename = _ARTIFACT_SCHEMA_FILENAMES.get(artifact_name)
+    if schema_filename is None:
+        supported = ", ".join(sorted(_ARTIFACT_SCHEMA_FILENAMES))
+        raise ValueError(f"unsupported artifact schema {artifact_name!r}; expected one of: {supported}")
+
+    schema = _load_schema(schema_filename)
+    return _validate_against_schema(
+        payload,
+        schema,
+        location=location or artifact_name,
+        root_schema=schema,
+    )
+
+
 def validate_run_bundle_schema(
     manifest: dict[str, Any],
     raw_events: list[dict[str, Any]],
@@ -167,71 +197,24 @@ def validate_run_bundle_schema(
 ) -> list[str]:
     """Return schema-validation issues for a run bundle."""
 
-    manifest_schema = _load_schema("manifest.schema.json")
-    raw_event_schema = _load_schema("raw_trace_event.schema.json")
-    layout_schema = _load_schema("layout.schema.json")
-    derived_event_schema = _load_schema("derived_event.schema.json")
-    motif_ledger_schema = _load_schema("motif_ledger.schema.json")
-    contingency_schema = _load_schema("contingency.schema.json")
-
     issues: list[str] = []
 
-    issues.extend(
-        _validate_against_schema(
-            manifest,
-            manifest_schema,
-            location="manifest",
-            root_schema=manifest_schema,
-        )
-    )
+    issues.extend(validate_artifact_schema("manifest", manifest, location="manifest"))
 
     for index, event in enumerate(raw_events):
-        issues.extend(
-            _validate_against_schema(
-                event,
-                raw_event_schema,
-                location=f"raw_events[{index}]",
-                root_schema=raw_event_schema,
-            )
-        )
+        issues.extend(validate_artifact_schema("raw_event", event, location=f"raw_events[{index}]"))
 
-    issues.extend(
-        _validate_against_schema(
-            layout,
-            layout_schema,
-            location="layout",
-            root_schema=layout_schema,
-        )
-    )
+    issues.extend(validate_artifact_schema("layout", layout, location="layout"))
 
     for index, event in enumerate(derived_events or []):
         issues.extend(
-            _validate_against_schema(
-                event,
-                derived_event_schema,
-                location=f"derived_events[{index}]",
-                root_schema=derived_event_schema,
-            )
+            validate_artifact_schema("derived_event", event, location=f"derived_events[{index}]")
         )
 
     if motif_ledger is not None:
-        issues.extend(
-            _validate_against_schema(
-                motif_ledger,
-                motif_ledger_schema,
-                location="motif_ledger",
-                root_schema=motif_ledger_schema,
-            )
-        )
+        issues.extend(validate_artifact_schema("motif_ledger", motif_ledger, location="motif_ledger"))
 
     if contingency is not None:
-        issues.extend(
-            _validate_against_schema(
-                contingency,
-                contingency_schema,
-                location="contingency",
-                root_schema=contingency_schema,
-            )
-        )
+        issues.extend(validate_artifact_schema("contingency", contingency, location="contingency"))
 
     return issues

@@ -42,6 +42,10 @@ def make_valid_raw_event() -> dict:
     }
 
 
+def entropy_for(router_probs: list[float]) -> float:
+    return -sum(prob * math.log(prob) for prob in router_probs if prob > 0.0)
+
+
 def make_valid_manifest() -> dict:
     return {
         "schema_version": "manifest/v0.1.0",
@@ -150,6 +154,20 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("router_probs_length_mismatch", {issue.code for issue in issues})
 
+    def test_validate_raw_event_semantics_reports_router_probs_sum_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        layer = event["layers"][0]
+        layer["router_probs"] = [0.5, 0.3, 0.1, 0.0]
+        layer["topk_probs"] = [0.5, 0.3]
+        layer["top1_prob"] = 0.5
+        layer["top1_top2_margin"] = 0.2
+        layer["entropy"] = entropy_for(layer["router_probs"])
+        layer["normalized_entropy"] = layer["entropy"] / math.log(layer["num_total_experts"])
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("router_probs_sum_mismatch", {issue.code for issue in issues})
+
     def test_validate_raw_event_semantics_reports_topk_index_out_of_bounds(self) -> None:
         event = make_valid_raw_event()
         event["layers"][0]["topk_indices"] = [0, 5]
@@ -158,6 +176,16 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("topk_index_out_of_bounds", {issue.code for issue in issues})
 
+    def test_validate_raw_event_semantics_reports_topk_prob_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        layer = event["layers"][0]
+        layer["topk_probs"] = [0.6, 0.25]
+        layer["top1_top2_margin"] = 0.35
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("topk_prob_mismatch", {issue.code for issue in issues})
+
     def test_validate_raw_event_semantics_reports_decode_duration_mismatch(self) -> None:
         event = make_valid_raw_event()
         event["timing_ms"]["decode_duration"] = 14.0
@@ -165,6 +193,22 @@ class RawEventSemanticValidationTests(unittest.TestCase):
         issues = validate_raw_event_semantics(event)
 
         self.assertIn("decode_duration_mismatch", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_top1_prob_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["top1_prob"] = 0.55
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("top1_prob_mismatch", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_top1_top2_margin_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["top1_top2_margin"] = 0.25
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("top1_top2_margin_mismatch", {issue.code for issue in issues})
 
     def test_validate_raw_event_semantics_reports_num_active_experts_exceeds_total(self) -> None:
         event = make_valid_raw_event()
@@ -225,6 +269,22 @@ class RawEventSemanticValidationTests(unittest.TestCase):
         issues = validate_raw_event_semantics(event)
 
         self.assertIn("num_active_experts_must_be_positive", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_entropy_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["entropy"] = 0.8
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("entropy_mismatch", {issue.code for issue in issues})
+
+    def test_validate_raw_event_semantics_reports_normalized_entropy_mismatch(self) -> None:
+        event = make_valid_raw_event()
+        event["layers"][0]["normalized_entropy"] = 0.6
+
+        issues = validate_raw_event_semantics(event)
+
+        self.assertIn("normalized_entropy_mismatch", {issue.code for issue in issues})
 
     def test_validate_raw_event_semantics_accepts_tied_topk_in_any_order(self) -> None:
         event = make_valid_raw_event()
@@ -417,6 +477,34 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
 
         self.assertIn("layout_expert_count_mismatch", {issue.code for issue in issues})
 
+    def test_validate_run_bundle_semantics_reports_raw_layer_expert_count_inconsistent(self) -> None:
+        manifest = make_valid_manifest()
+        first = make_valid_raw_event()
+        second = copy.deepcopy(make_valid_raw_event())
+        second["token_index"] = 1
+        second["token_id"] = 43
+        second["token_text"] = "world"
+        second_layer = second["layers"][0]
+        second_layer["num_total_experts"] = 5
+        second_layer["router_probs"] = [0.55, 0.25, 0.1, 0.05, 0.05]
+        second_layer["topk_indices"] = [0, 1]
+        second_layer["topk_probs"] = [0.55, 0.25]
+        second_layer["top1_prob"] = 0.55
+        second_layer["top1_top2_margin"] = 0.3
+        second_layer["entropy"] = entropy_for(second_layer["router_probs"])
+        second_layer["normalized_entropy"] = second_layer["entropy"] / math.log(
+            second_layer["num_total_experts"]
+        )
+        raw_events = [first, second]
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            make_valid_layout(),
+        )
+
+        self.assertIn("raw_layer_expert_count_inconsistent", {issue.code for issue in issues})
+
     def test_validate_run_bundle_semantics_reports_duplicate_raw_token_index(self) -> None:
         manifest = make_valid_manifest()
         raw_events = [make_valid_raw_event(), copy.deepcopy(make_valid_raw_event())]
@@ -486,6 +574,22 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
         )
 
         self.assertIn("derivation_config_mismatch", {issue.code for issue in issues})
+
+    def test_validate_run_bundle_semantics_reports_derivation_version_mismatch(self) -> None:
+        manifest = make_valid_manifest()
+        raw_events = [make_valid_raw_event()]
+        layout = make_valid_layout()
+        derived_events = [make_valid_derived_event()]
+        derived_events[0]["derivation_version"] = "motifs/other-alpha"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+            derived_events=copy.deepcopy(derived_events),
+        )
+
+        self.assertIn("derivation_version_mismatch", {issue.code for issue in issues})
 
     def test_validate_run_bundle_semantics_reports_orphan_derived_token_index(self) -> None:
         manifest = make_valid_manifest()

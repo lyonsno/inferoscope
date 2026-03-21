@@ -4,6 +4,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+CANONICAL_SCHEMA_DIR = REPO_ROOT / "schema" / "v0.1.0"
+PACKAGED_SCHEMA_DIR = REPO_ROOT / "inferoscope" / "validation" / "schemas" / "v0.1.0"
 
 
 def load_json(relative_path: str) -> dict:
@@ -48,6 +50,19 @@ class SchemaContractAlignmentTests(unittest.TestCase):
 
         self.assertEqual(canonical_minimum, 1)
         self.assertEqual(packaged_minimum, 1)
+
+    def test_packaged_runtime_schemas_match_canonical_schema_directory(self) -> None:
+        canonical_files = sorted(path.name for path in CANONICAL_SCHEMA_DIR.glob("*.json"))
+        packaged_files = sorted(path.name for path in PACKAGED_SCHEMA_DIR.glob("*.json"))
+
+        self.assertEqual(packaged_files, canonical_files)
+
+        for filename in canonical_files:
+            with self.subTest(filename=filename):
+                self.assertEqual(
+                    load_json(f"inferoscope/validation/schemas/v0.1.0/{filename}"),
+                    load_json(f"schema/v0.1.0/{filename}"),
+                )
 
     def test_manifest_schema_has_stable_top_level_contract(self) -> None:
         schema = load_json("schema/v0.1.0/manifest.schema.json")

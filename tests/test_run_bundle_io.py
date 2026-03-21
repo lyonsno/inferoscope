@@ -57,6 +57,30 @@ def make_valid_layout(run_id: str = "run-001") -> dict:
 
 
 class WriteRunBundleTests(unittest.TestCase):
+    def test_write_run_bundle_rejects_backslash_run_id_strings(self) -> None:
+        run_id = r"group\run-001"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "backslashes"):
+                write_run_bundle(
+                    tmpdir,
+                    make_valid_manifest(run_id=run_id),
+                    [make_valid_raw_event(run_id=run_id)],
+                    make_valid_layout(run_id=run_id),
+                )
+
+    def test_write_run_bundle_rejects_absolute_run_id_strings(self) -> None:
+        run_id = "/tmp/evil"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "relative path"):
+                write_run_bundle(
+                    tmpdir,
+                    make_valid_manifest(run_id=run_id),
+                    [make_valid_raw_event(run_id=run_id)],
+                    make_valid_layout(run_id=run_id),
+                )
+
     def test_write_and_load_run_bundle_supports_namespaced_run_ids(self) -> None:
         run_id = "group/run-001"
 
@@ -176,6 +200,19 @@ class WriteRunBundleTests(unittest.TestCase):
             self.assertIsNone(bundle["derived_events"])
             self.assertIsNone(bundle["motif_ledger"])
             self.assertIsNone(bundle["contingency"])
+
+    def test_write_run_bundle_rejects_existing_destination_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            existing_run_dir = Path(tmpdir) / "run-001"
+            existing_run_dir.mkdir()
+
+            with self.assertRaises(FileExistsError):
+                write_run_bundle(
+                    tmpdir,
+                    make_valid_manifest(),
+                    [make_valid_raw_event()],
+                    make_valid_layout(),
+                )
 
     def test_write_run_bundle_rejects_semantically_invalid_bundle(self) -> None:
         manifest = make_valid_manifest()
