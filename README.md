@@ -107,10 +107,13 @@ This separation is intentional:
 
 ## Quick Example
 
-The example below builds a minimal one-token run bundle and validates it on write and load:
+If you're working from a checkout instead of an installed package, run this from the repo root or set `PYTHONPATH=/path/to/inferoscope` first.
+
+The example below builds a minimal one-token run bundle, validates it on write and load, and uses a temporary bundle root so it is safe to rerun:
 
 ```python
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from inferoscope.extraction import (
     MoELayerCaptureInput,
@@ -155,14 +158,15 @@ layout = build_layer_grid_layout(
     layer_expert_counts=[(0, 4)],
 )
 
-run_dir = write_run_bundle(Path("runs"), manifest, [raw_event], layout)
-bundle = load_run_bundle(run_dir)
+with TemporaryDirectory() as bundle_root:
+    run_dir = write_run_bundle(Path(bundle_root), manifest, [raw_event], layout)
+    bundle = load_run_bundle(run_dir)
 
-print(run_dir)
-print(bundle["raw_events"][0]["layers"][0]["topk_indices"])
+    print(run_dir)
+    print(bundle["raw_events"][0]["layers"][0]["topk_indices"])
 ```
 
-That creates a validated bundle under `runs/demo-run/`.
+That creates and validates a bundle under a temporary directory, so you can paste and rerun the example without cleaning up a previous `run_id`.
 
 ## Why Replay-First Matters
 
