@@ -213,7 +213,19 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         issues = validate_raw_event_semantics(event)
 
-        self.assertIn("topk_prob_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="raw_event.layer[0]",
+                    code="topk_prob_mismatch",
+                    message=(
+                        "topk_probs must match router_probs at the corresponding "
+                        "topk_indices within tolerance."
+                    ),
+                )
+            ],
+        )
 
     def test_validate_raw_event_semantics_reports_decode_duration_mismatch(self) -> None:
         event = make_valid_raw_event()
@@ -237,7 +249,16 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         issues = validate_raw_event_semantics(event)
 
-        self.assertIn("top1_top2_margin_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="raw_event.layer[0]",
+                    code="top1_top2_margin_mismatch",
+                    message="top1_top2_margin must equal topk_probs[0] - topk_probs[1] within tolerance.",
+                )
+            ],
+        )
 
     def test_validate_raw_event_semantics_reports_num_active_experts_exceeds_total(self) -> None:
         event = make_valid_raw_event()
@@ -305,7 +326,16 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         issues = validate_raw_event_semantics(event)
 
-        self.assertIn("entropy_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="raw_event.layer[0]",
+                    code="entropy_mismatch",
+                    message="entropy must equal -sum_i p_i ln(p_i) within tolerance.",
+                )
+            ],
+        )
 
     def test_validate_raw_event_semantics_reports_normalized_entropy_mismatch(self) -> None:
         event = make_valid_raw_event()
@@ -569,7 +599,16 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
             contingency=make_valid_contingency(),
         )
 
-        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="run_bundle",
+                    code="run_id_mismatch",
+                    message="motif_ledger run_id must match the manifest run_id.",
+                )
+            ],
+        )
 
     def test_validate_run_bundle_semantics_reports_layout_expert_count_mismatch(self) -> None:
         manifest = make_valid_manifest()
@@ -583,7 +622,21 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
             layout,
         )
 
-        self.assertIn("layout_expert_count_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="run_bundle",
+                    code="layout_expert_count_mismatch",
+                    message="layout layer 0 must contain 4 expert positions.",
+                ),
+                ValidationIssue(
+                    scope="run_bundle",
+                    code="layout_expert_index_set_mismatch",
+                    message="layout layer 0 must cover expert indices 0 through 3.",
+                ),
+            ],
+        )
 
     def test_validate_run_bundle_semantics_reports_raw_layer_expert_count_inconsistent(self) -> None:
         manifest = make_valid_manifest()

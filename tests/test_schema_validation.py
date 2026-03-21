@@ -120,7 +120,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_artifact_schema("layout", layout, location="layout")
 
-        self.assertIn("layout.layers[0].positions[0].x is required", issues)
+        self.assertEqual(
+            issues,
+            ["layout.layers[0].positions[0].x is required"],
+        )
 
     def test_validate_artifact_schema_validates_layout_min_length(self) -> None:
         layout = make_valid_layout()
@@ -139,7 +142,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_artifact_schema("derived_event", derived_event, location="derived_event")
 
-        self.assertIn("derived_event.derived_payload is required", issues)
+        self.assertEqual(
+            issues,
+            ["derived_event.derived_payload is required"],
+        )
 
     def test_validate_artifact_schema_validates_single_motif_ledger(self) -> None:
         motif_ledger = make_valid_motif_ledger()
@@ -200,7 +206,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_run_bundle_schema(make_valid_manifest(), [raw_event], make_valid_layout())
 
-        self.assertIn("raw_events[0].layers[0].layer_kind must be one of ['moe']", issues)
+        self.assertEqual(
+            issues,
+            ["raw_events[0].layers[0].layer_kind must be one of ['moe']"],
+        )
 
     def test_validate_run_bundle_schema_reports_additional_property_in_referenced_raw_layer(self) -> None:
         raw_event = make_valid_raw_event()
@@ -221,7 +230,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_run_bundle_schema(make_valid_manifest(), [make_valid_raw_event()], layout)
 
-        self.assertIn("layout.layers[0].positions[0].z is required", issues)
+        self.assertEqual(
+            issues,
+            ["layout.layers[0].positions[0].z is required"],
+        )
 
     def test_validate_run_bundle_schema_reports_min_items_in_referenced_layout_positions(self) -> None:
         layout = make_valid_layout()
