@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
+from inferoscope.run_ids import run_id_path
+
 FLOAT_TOLERANCE = 1e-6
 
 
@@ -318,8 +320,22 @@ def validate_manifest_semantics(
     """Return semantic validation issues for a manifest."""
 
     del derived_artifacts_present
-    del manifest
-    return []
+
+    issues: list[ValidationIssue] = []
+    run_id = manifest.get("run_id")
+    if isinstance(run_id, str) and run_id:
+        try:
+            run_id_path(run_id)
+        except ValueError as exc:
+            issues.append(
+                _issue(
+                    "manifest",
+                    "run_id_path_invalid",
+                    str(exc),
+                )
+            )
+
+    return issues
 
 
 def validate_layout_semantics(layout: dict[str, Any]) -> list[ValidationIssue]:

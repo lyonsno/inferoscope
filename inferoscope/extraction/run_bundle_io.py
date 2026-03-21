@@ -3,29 +3,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 import shutil
 import tempfile
 from typing import Any
 
+from inferoscope.run_ids import run_id_path
 from inferoscope.validation import validate_run_bundle_schema, validate_run_bundle_semantics
-
-
-def _run_id_path(run_id: str) -> Path:
-    if "\\" in run_id:
-        raise ValueError("manifest run_id must not contain backslashes")
-
-    windows_path = PureWindowsPath(run_id)
-    if windows_path.drive or windows_path.root:
-        raise ValueError("manifest run_id must be a relative path without a Windows drive or root")
-
-    raw_parts = run_id.split("/")
-    if run_id.startswith("/") or any(part in {"", ".", ".."} for part in raw_parts):
-        raise ValueError(
-            "manifest run_id must be a canonical relative path with non-empty segments"
-        )
-
-    return Path(*raw_parts)
 
 
 def _json_dumps(payload: Any, *, pretty: bool) -> str:
@@ -112,7 +96,7 @@ def _raise_for_semantic_issues(
     run_id = manifest.get("run_id")
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("manifest run_id must be a non-empty string")
-    _run_id_path(run_id)
+    run_id_path(run_id)
 
     issues = validate_run_bundle_semantics(
         manifest,
@@ -142,7 +126,7 @@ def write_run_bundle(
     run_id = manifest.get("run_id")
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("manifest run_id must be a non-empty string")
-    run_id_path = _run_id_path(run_id)
+    validated_run_id_path = run_id_path(run_id)
 
     _raise_for_schema_issues(
         manifest,
@@ -164,7 +148,7 @@ def write_run_bundle(
     root_path = Path(root_dir)
     root_path.mkdir(parents=True, exist_ok=True)
 
-    run_dir = root_path / run_id_path
+    run_dir = root_path / validated_run_id_path
     if run_dir.exists():
         raise FileExistsError(f"run bundle directory already exists: {run_dir}")
 

@@ -5,6 +5,7 @@ import unittest
 from inferoscope.validation.semantic import (
     ValidationIssue,
     validate_layout_semantics,
+    validate_manifest_semantics,
     validate_raw_event_semantics,
     validate_run_bundle_semantics,
 )
@@ -139,6 +140,25 @@ class SemanticValidationApiTests(unittest.TestCase):
         self.assertEqual(issue.scope, "raw_event")
         self.assertEqual(issue.code, "example")
         self.assertEqual(issue.message, "example message")
+
+
+class ManifestSemanticValidationTests(unittest.TestCase):
+    def test_validate_manifest_semantics_reports_invalid_run_id_path(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["run_id"] = "../evil"
+
+        issues = validate_manifest_semantics(manifest)
+
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="manifest",
+                    code="run_id_path_invalid",
+                    message="manifest run_id must be a canonical relative path with non-empty segments.",
+                )
+            ],
+        )
 
 
 class RawEventSemanticValidationTests(unittest.TestCase):
@@ -312,6 +332,31 @@ class LayoutSemanticValidationTests(unittest.TestCase):
 
 
 class RunBundleSemanticValidationTests(unittest.TestCase):
+    def test_validate_run_bundle_semantics_reports_manifest_invalid_run_id_path(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["run_id"] = "../evil"
+        raw_events = [make_valid_raw_event()]
+        raw_events[0]["run_id"] = "../evil"
+        layout = make_valid_layout()
+        layout["run_id"] = "../evil"
+
+        issues = validate_run_bundle_semantics(
+            manifest,
+            raw_events,
+            layout,
+        )
+
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="manifest",
+                    code="run_id_path_invalid",
+                    message="manifest run_id must be a canonical relative path with non-empty segments.",
+                )
+            ],
+        )
+
     def test_validate_run_bundle_semantics_reports_raw_event_schema_version_mismatch(self) -> None:
         manifest = make_valid_manifest()
         raw_events = [make_valid_raw_event()]
