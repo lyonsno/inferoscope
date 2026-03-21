@@ -51,7 +51,47 @@ def make_valid_layout() -> dict:
     )
 
 
+def make_valid_derived_event() -> dict:
+    return {
+        "event_type": "token_derived",
+        "schema_version": "derived/v0.1.0-provisional",
+        "run_id": "run-001",
+        "token_index": 0,
+        "derivation_version": "motifs/v0.1.0-alpha",
+        "derivation_config_id": "motifs/default-alpha",
+        "derived_payload": {},
+    }
+
+
+def make_valid_motif_ledger() -> dict:
+    return {
+        "schema_version": "motif_ledger/v0.1.0-provisional",
+        "run_id": "run-001",
+        "derivation_version": "motifs/v0.1.0-alpha",
+        "derivation_config_id": "motifs/default-alpha",
+        "ledger_payload": {},
+    }
+
+
+def make_valid_contingency() -> dict:
+    return {
+        "schema_version": "contingency/v0.1.0-provisional",
+        "run_id": "run-001",
+        "derivation_version": "motifs/v0.1.0-alpha",
+        "derivation_config_id": "motifs/default-alpha",
+        "contingency_payload": {},
+    }
+
+
 class SchemaValidationBehaviorTests(unittest.TestCase):
+    def test_validate_artifact_schema_validates_single_manifest(self) -> None:
+        manifest = make_valid_manifest()
+        manifest["prompt"]["extra"] = "nope"
+
+        issues = validate_artifact_schema("manifest", manifest, location="manifest")
+
+        self.assertIn("manifest.prompt.extra is not allowed by the schema", issues)
+
     def test_validate_artifact_schema_validates_single_raw_event(self) -> None:
         raw_event = make_valid_raw_event()
         raw_event["layers"][0]["unexpected"] = True
@@ -59,6 +99,38 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
         issues = validate_artifact_schema("raw_event", raw_event, location="raw_event")
 
         self.assertIn("raw_event.layers[0].unexpected is not allowed by the schema", issues)
+
+    def test_validate_artifact_schema_validates_single_layout(self) -> None:
+        layout = make_valid_layout()
+        del layout["layers"][0]["positions"][0]["x"]
+
+        issues = validate_artifact_schema("layout", layout, location="layout")
+
+        self.assertIn("layout.layers[0].positions[0].x is required", issues)
+
+    def test_validate_artifact_schema_validates_single_derived_event(self) -> None:
+        derived_event = make_valid_derived_event()
+        del derived_event["derived_payload"]
+
+        issues = validate_artifact_schema("derived_event", derived_event, location="derived_event")
+
+        self.assertIn("derived_event.derived_payload is required", issues)
+
+    def test_validate_artifact_schema_validates_single_motif_ledger(self) -> None:
+        motif_ledger = make_valid_motif_ledger()
+        motif_ledger["unexpected"] = True
+
+        issues = validate_artifact_schema("motif_ledger", motif_ledger, location="motif_ledger")
+
+        self.assertIn("motif_ledger.unexpected is not allowed by the schema", issues)
+
+    def test_validate_artifact_schema_validates_single_contingency(self) -> None:
+        contingency = make_valid_contingency()
+        del contingency["contingency_payload"]
+
+        issues = validate_artifact_schema("contingency", contingency, location="contingency")
+
+        self.assertIn("contingency.contingency_payload is required", issues)
 
     def test_validate_artifact_schema_rejects_unknown_artifact_names(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported artifact schema"):
