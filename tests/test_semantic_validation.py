@@ -172,7 +172,16 @@ class RawEventSemanticValidationTests(unittest.TestCase):
 
         issues = validate_raw_event_semantics(event)
 
-        self.assertIn("router_probs_length_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="raw_event.layer[0]",
+                    code="router_probs_length_mismatch",
+                    message="router_probs length must equal num_total_experts.",
+                )
+            ],
+        )
 
     def test_validate_raw_event_semantics_reports_router_probs_sum_mismatch(self) -> None:
         event = make_valid_raw_event()
@@ -328,7 +337,16 @@ class LayoutSemanticValidationTests(unittest.TestCase):
 
         issues = validate_layout_semantics(layout)
 
-        self.assertIn("duplicate_expert_index", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="layout.layer[0]",
+                    code="duplicate_expert_index",
+                    message="positions within a layer must not repeat expert_index values.",
+                )
+            ],
+        )
 
 
 class RunBundleSemanticValidationTests(unittest.TestCase):
@@ -413,7 +431,19 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
             derived_events=copy.deepcopy(derived_events),
         )
 
-        self.assertIn("derived_event_schema_version_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="run_bundle",
+                    code="derived_event_schema_version_mismatch",
+                    message=(
+                        "derived_event schema_version must match "
+                        "manifest artifact_versions.derived_event_schema_version."
+                    ),
+                )
+            ],
+        )
 
     def test_validate_run_bundle_semantics_reports_motif_ledger_schema_version_mismatch(self) -> None:
         manifest = make_valid_manifest()
@@ -459,7 +489,16 @@ class RunBundleSemanticValidationTests(unittest.TestCase):
             layout,
         )
 
-        self.assertIn("run_id_mismatch", {issue.code for issue in issues})
+        self.assertEqual(
+            issues,
+            [
+                ValidationIssue(
+                    scope="run_bundle",
+                    code="run_id_mismatch",
+                    message="raw_event run_id must match the manifest run_id.",
+                )
+            ],
+        )
 
     def test_validate_run_bundle_semantics_reports_layout_run_id_mismatch(self) -> None:
         manifest = make_valid_manifest()

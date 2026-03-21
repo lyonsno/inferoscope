@@ -90,7 +90,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_artifact_schema("manifest", manifest, location="manifest")
 
-        self.assertIn("manifest.prompt.extra is not allowed by the schema", issues)
+        self.assertEqual(
+            issues,
+            ["manifest.prompt.extra is not allowed by the schema"],
+        )
 
     def test_validate_artifact_schema_validates_single_raw_event(self) -> None:
         raw_event = make_valid_raw_event()
@@ -142,7 +145,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_run_bundle_schema(manifest, [make_valid_raw_event()], make_valid_layout())
 
-        self.assertIn("manifest.run_id must have schema type 'string'", issues)
+        self.assertEqual(
+            issues,
+            ["manifest.run_id must have schema type 'string'"],
+        )
 
     def test_validate_run_bundle_schema_reports_enum_violation_in_referenced_raw_layer(self) -> None:
         raw_event = make_valid_raw_event()
@@ -158,7 +164,10 @@ class SchemaValidationBehaviorTests(unittest.TestCase):
 
         issues = validate_run_bundle_schema(make_valid_manifest(), [raw_event], make_valid_layout())
 
-        self.assertIn("raw_events[0].layers[0].unexpected is not allowed by the schema", issues)
+        self.assertEqual(
+            issues,
+            ["raw_events[0].layers[0].unexpected is not allowed by the schema"],
+        )
 
     def test_validate_run_bundle_schema_reports_missing_required_property_in_referenced_layout_position(
         self,
