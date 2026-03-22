@@ -168,6 +168,70 @@ with TemporaryDirectory() as bundle_root:
 
 That creates and validates a bundle under a temporary directory, so you can paste and rerun the example without cleaning up a previous `run_id`.
 
+## PyTorch OLMoE Bridge Example
+
+For generated-token callbacks, `inferoscope` also exposes a recorder-oriented bridge through `PyTorchRunBundleRecorder` and `record_olmoe_generated_token`.
+
+This is useful when your model loop already emits router logits per layer and you want to convert each completed token into a validated replay bundle event:
+
+```python
+from tempfile import TemporaryDirectory
+
+from inferoscope.extraction import (
+    PyTorchRunBundleRecorder,
+    load_run_bundle,
+    record_olmoe_generated_token,
+)
+
+
+class FakeTensor:
+    def __init__(self, values):
+        self._values = values
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def tolist(self):
+        return self._values
+
+
+recorder = PyTorchRunBundleRecorder(
+    run_id="demo-olmoe-run",
+    created_at="2026-03-22T12:00:00Z",
+    model_id="allenai/OLMoE-1B-7B-0125",
+    tokenizer_id="allenai/OLMoE-1B-7B-0125",
+    prompt_text="hello",
+    derivation_version="motifs/v0.1.0-alpha",
+    derivation_config_id="motifs/default-alpha",
+    generation_config={"max_new_tokens": 4},
+    capture_config={"adapter": "olmoe"},
+)
+
+record_olmoe_generated_token(
+    recorder,
+    token_id=42,
+    token_text=" hello",
+    context_length=5,
+    decode_start_ms=10.0,
+    decode_end_ms=20.0,
+    router_logits_by_layer={
+        1: FakeTensor([1.0, 0.0]),
+        0: FakeTensor([2.0, 1.0, 0.0, -1.0]),
+    },
+    num_active_experts=1,
+)
+
+with TemporaryDirectory() as bundle_root:
+    run_dir = recorder.write_bundle(bundle_root)
+    bundle = load_run_bundle(run_dir)
+
+    print(bundle["raw_events"][0]["token_index"])
+    print([layer["layer_index"] for layer in bundle["raw_events"][0]["layers"]])
+```
+
 ## Why Replay-First Matters
 
 A replay-first design has a few practical advantages:

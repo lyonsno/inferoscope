@@ -61,6 +61,20 @@ class ReadmeContractTests(unittest.TestCase):
             msg="Quick Example should explain how to import inferoscope from a checkout",
         )
 
+    def test_readme_documents_olmoe_recorder_bridge_surface(self) -> None:
+        readme_text = (REPO_ROOT / "README.md").read_text()
+
+        self.assertIn(
+            "PyTorchRunBundleRecorder",
+            readme_text,
+            msg="README should document the public PyTorchRunBundleRecorder API",
+        )
+        self.assertIn(
+            "record_olmoe_generated_token",
+            readme_text,
+            msg="README should document the public record_olmoe_generated_token bridge API",
+        )
+
     def test_quick_example_python_block_runs_successfully(self) -> None:
         result = run_quick_example_subprocess()
 
