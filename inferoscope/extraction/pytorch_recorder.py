@@ -56,6 +56,19 @@ class PyTorchRunBundleRecorder:
 
         return deepcopy(self._raw_events)
 
+    def _next_generated_token_index(self) -> int:
+        if not self._raw_events:
+            return 0
+
+        token_indices = [event["token_index"] for event in self._raw_events]
+        expected_indices = list(range(len(token_indices)))
+        if token_indices != expected_indices:
+            raise ValueError(
+                "record_generated_token requires existing token_index values to be contiguous starting at 0."
+            )
+
+        return len(token_indices)
+
     def record_token_complete(
         self,
         *,
@@ -94,6 +107,28 @@ class PyTorchRunBundleRecorder:
         self._layer_expert_counts = proposed_counts
         self._raw_events.append(event)
         return deepcopy(event)
+
+    def record_generated_token(
+        self,
+        *,
+        token_id: int,
+        token_text: str,
+        context_length: int,
+        decode_start_ms: float,
+        decode_end_ms: float,
+        layer_inputs: list[PyTorchMoELayerCaptureInput],
+    ) -> dict[str, Any]:
+        """Build and store one completed-token raw event with an inferred token index."""
+
+        return self.record_token_complete(
+            token_index=self._next_generated_token_index(),
+            token_id=token_id,
+            token_text=token_text,
+            context_length=context_length,
+            decode_start_ms=decode_start_ms,
+            decode_end_ms=decode_end_ms,
+            layer_inputs=layer_inputs,
+        )
 
     def build_layout(self) -> dict[str, Any]:
         """Build the deterministic layer-grid layout inferred from recorded events."""

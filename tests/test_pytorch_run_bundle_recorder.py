@@ -86,6 +86,54 @@ class PyTorchRunBundleRecorderTests(unittest.TestCase):
             ],
         }
 
+    def manual_nonzero_token_kwargs(self) -> dict:
+        token_kwargs = self.first_token_kwargs()
+        token_kwargs["token_index"] = 7
+        token_kwargs["token_id"] = 77
+        token_kwargs["token_text"] = " manual-seven"
+        token_kwargs["context_length"] = 12
+        token_kwargs["decode_start_ms"] = 100.0
+        token_kwargs["decode_end_ms"] = 120.0
+        return token_kwargs
+
+    def first_generated_token_kwargs(self) -> dict:
+        token_kwargs = self.first_token_kwargs()
+        del token_kwargs["token_index"]
+        return token_kwargs
+
+    def second_generated_token_kwargs(self) -> dict:
+        token_kwargs = self.second_token_kwargs()
+        del token_kwargs["token_index"]
+        return token_kwargs
+
+    def inconsistent_generated_token_kwargs(self) -> dict:
+        return {
+            "token_id": 43,
+            "token_text": " world",
+            "context_length": 6,
+            "decode_start_ms": 21.0,
+            "decode_end_ms": 30.0,
+            "layer_inputs": [
+                extraction.PyTorchMoELayerCaptureInput(
+                    layer_index=0,
+                    router_logits=FakeTensor([2.0, 1.0, 0.0, -1.0, -2.0]),
+                    num_active_experts=2,
+                ),
+                extraction.PyTorchMoELayerCaptureInput(
+                    layer_index=1,
+                    router_logits=FakeTensor([0.1, 0.9]),
+                    num_active_experts=1,
+                ),
+            ],
+        }
+
+    def record_generated_token(self, recorder, *, required_behavior: str, **kwargs) -> dict:
+        self.assertTrue(
+            hasattr(recorder, "record_generated_token"),
+            f"PyTorchRunBundleRecorder must implement record_generated_token to {required_behavior}",
+        )
+        return recorder.record_generated_token(**kwargs)
+
     def write_and_load(self, recorder) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = recorder.write_bundle(tmpdir)
@@ -258,6 +306,145 @@ class PyTorchRunBundleRecorderTests(unittest.TestCase):
         self.assertEqual(
             bundle["manifest"]["capture_config"],
             {"hooks": {"router": "full-router-probs"}},
+        )
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_auto_assigns_token_indices(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="provide an auto-indexing generation callback surface",
+        )
+
+        first_event = self.record_generated_token(
+            recorder,
+            required_behavior="auto-assign token indices for generation callbacks",
+            **self.first_generated_token_kwargs(),
+        )
+        second_event = self.record_generated_token(
+            recorder,
+            required_behavior="advance token indices across generation callbacks",
+            **self.second_generated_token_kwargs(),
+        )
+
+        self.assertEqual(first_event["token_index"], 0)
+        self.assertEqual(second_event["token_index"], 1)
+
+        bundle = self.write_and_load(recorder)
+        self.assertEqual(
+            bundle["raw_events"],
+            [
+                extraction.build_token_complete_event_from_pytorch(
+                    run_id="demo-run",
+                    token_index=0,
+                    **self.first_generated_token_kwargs(),
+                ),
+                extraction.build_token_complete_event_from_pytorch(
+                    run_id="demo-run",
+                    token_index=1,
+                    **self.second_generated_token_kwargs(),
+                ),
+            ],
+        )
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_failed_append_does_not_advance_index(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="keep generation callback state usable after a failed append",
+        )
+        self.record_generated_token(
+            recorder,
+            required_behavior="record the first generated token",
+            **self.first_generated_token_kwargs(),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"(layer 0.*num_total_experts|num_total_experts.*layer 0)",
+        ):
+            self.record_generated_token(
+                recorder,
+                required_behavior="reject inconsistent expert counts without advancing token indices",
+                **self.inconsistent_generated_token_kwargs(),
+            )
+
+        second_event = self.record_generated_token(
+            recorder,
+            required_behavior="resume token indexing after a failed append",
+            **self.second_generated_token_kwargs(),
+        )
+
+        self.assertEqual(second_event["token_index"], 1)
+
+        bundle = self.write_and_load(recorder)
+        self.assertEqual([event["token_index"] for event in bundle["raw_events"]], [0, 1])
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_continues_after_manual_tokens(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="keep generated token indices contiguous after manual recording",
+        )
+        recorder.record_token_complete(**self.first_token_kwargs())
+
+        generated_event = self.record_generated_token(
+            recorder,
+            required_behavior="continue token indices after manual record_token_complete calls",
+            **self.second_generated_token_kwargs(),
+        )
+
+        self.assertEqual(generated_event["token_index"], 1)
+
+        bundle = self.write_and_load(recorder)
+        self.assertEqual([event["token_index"] for event in bundle["raw_events"]], [0, 1])
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_rejects_noncontiguous_manual_state(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="reject auto-indexing after noncontiguous manual recording",
+        )
+        recorder.record_token_complete(**self.manual_nonzero_token_kwargs())
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^record_generated_token requires existing token_index values to be contiguous starting at 0\.$",
+        ):
+            self.record_generated_token(
+                recorder,
+                required_behavior="reject auto-indexing after a non-zero manual record_token_complete call",
+                **self.second_generated_token_kwargs(),
+            )
+
+        self.assertEqual(
+            [event["token_index"] for event in recorder.raw_events],
+            [7],
+        )
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_returns_a_defensive_copy(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="protect recorded raw events from caller mutation through generated-token callbacks",
+        )
+
+        event = self.record_generated_token(
+            recorder,
+            required_behavior="return a defensive copy from record_generated_token",
+            **self.first_generated_token_kwargs(),
+        )
+        event["run_id"] = "other-run"
+
+        bundle = self.write_and_load(recorder)
+        self.assertEqual(
+            bundle["raw_events"],
+            [
+                extraction.build_token_complete_event_from_pytorch(
+                    run_id="demo-run",
+                    token_index=0,
+                    **self.first_generated_token_kwargs(),
+                )
+            ],
         )
 
 
