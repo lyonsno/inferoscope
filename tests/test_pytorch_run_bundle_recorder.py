@@ -224,6 +224,42 @@ class PyTorchRunBundleRecorderTests(unittest.TestCase):
             ],
         )
 
+    def test_pytorch_run_bundle_recorder_deep_copies_nested_manifest_configs(self) -> None:
+        recorder_cls = getattr(extraction, "PyTorchRunBundleRecorder", None)
+        self.assertIsNotNone(
+            recorder_cls,
+            "inferoscope.extraction must export PyTorchRunBundleRecorder to snapshot nested config values",
+        )
+
+        generation_config = {"sampling": {"temperature": 0.7}}
+        capture_config = {"hooks": {"router": "full-router-probs"}}
+        recorder = recorder_cls(
+            run_id="demo-run",
+            created_at="2026-03-22T12:00:00Z",
+            model_id="allenai/OLMoE-1B-7B-0125",
+            tokenizer_id="allenai/OLMoE-1B-7B-0125",
+            prompt_text="hello",
+            derivation_version="motifs/v0.1.0-alpha",
+            derivation_config_id="motifs/default-alpha",
+            generation_config=generation_config,
+            capture_config=capture_config,
+        )
+
+        generation_config["sampling"]["temperature"] = 1.1
+        capture_config["hooks"]["router"] = "topk-only"
+
+        recorder.record_token_complete(**self.first_token_kwargs())
+        bundle = self.write_and_load(recorder)
+
+        self.assertEqual(
+            bundle["manifest"]["generation_config"],
+            {"sampling": {"temperature": 0.7}},
+        )
+        self.assertEqual(
+            bundle["manifest"]["capture_config"],
+            {"hooks": {"router": "full-router-probs"}},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

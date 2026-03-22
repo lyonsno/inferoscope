@@ -37,8 +37,8 @@ class PyTorchRunBundleRecorder:
             derivation_version=derivation_version,
             derivation_config_id=derivation_config_id,
             seed=seed,
-            generation_config=dict(generation_config) if generation_config is not None else None,
-            capture_config=dict(capture_config) if capture_config is not None else None,
+            generation_config=deepcopy(generation_config) if generation_config is not None else None,
+            capture_config=deepcopy(capture_config) if capture_config is not None else None,
         )
         self._layout_id = layout_id
         self._raw_events: list[dict[str, Any]] = []
