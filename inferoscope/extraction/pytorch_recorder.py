@@ -43,6 +43,8 @@ class PyTorchRunBundleRecorder:
         self._layout_id = layout_id
         self._raw_events: list[dict[str, Any]] = []
         self._layer_expert_counts: dict[int, int] = {}
+        self._auto_indexing_enabled = True
+        self._next_token_index = 0
 
     @property
     def manifest(self) -> dict[str, Any]:
@@ -57,17 +59,12 @@ class PyTorchRunBundleRecorder:
         return deepcopy(self._raw_events)
 
     def _next_generated_token_index(self) -> int:
-        if not self._raw_events:
-            return 0
-
-        token_indices = [event["token_index"] for event in self._raw_events]
-        expected_indices = list(range(len(token_indices)))
-        if token_indices != expected_indices:
+        if not self._auto_indexing_enabled:
             raise ValueError(
                 "record_generated_token requires existing token_index values to be contiguous starting at 0."
             )
 
-        return len(token_indices)
+        return self._next_token_index
 
     def record_token_complete(
         self,
@@ -104,8 +101,18 @@ class PyTorchRunBundleRecorder:
                 )
             proposed_counts[layer_index] = num_total_experts
 
+        next_auto_indexing_enabled = self._auto_indexing_enabled
+        next_token_index = self._next_token_index
+        if next_auto_indexing_enabled:
+            if token_index == next_token_index:
+                next_token_index += 1
+            else:
+                next_auto_indexing_enabled = False
+
         self._layer_expert_counts = proposed_counts
         self._raw_events.append(event)
+        self._auto_indexing_enabled = next_auto_indexing_enabled
+        self._next_token_index = next_token_index
         return deepcopy(event)
 
     def record_generated_token(

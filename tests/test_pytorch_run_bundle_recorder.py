@@ -18,6 +18,11 @@ class FakeTensor:
         return self._values
 
 
+class IterationForbiddenList(list):
+    def __iter__(self):
+        raise AssertionError("record_generated_token must not iterate over prior raw events")
+
+
 class PyTorchRunBundleRecorderTests(unittest.TestCase):
     def test_extraction_exports_pytorch_run_bundle_recorder(self) -> None:
         self.assertTrue(
@@ -446,6 +451,28 @@ class PyTorchRunBundleRecorderTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_pytorch_run_bundle_recorder_record_generated_token_uses_constant_time_index_lookup(
+        self,
+    ) -> None:
+        recorder = self.build_recorder(
+            required_behavior="avoid scanning all prior events for generated-token indexing",
+        )
+        self.record_generated_token(
+            recorder,
+            required_behavior="seed generated-token indexing state",
+            **self.first_generated_token_kwargs(),
+        )
+
+        # If index lookup iterates over prior events, this sentinel list raises.
+        recorder._raw_events = IterationForbiddenList(recorder._raw_events)
+
+        second_event = self.record_generated_token(
+            recorder,
+            required_behavior="compute next generated token index in constant time",
+            **self.second_generated_token_kwargs(),
+        )
+        self.assertEqual(second_event["token_index"], 1)
 
 
 if __name__ == "__main__":
