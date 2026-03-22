@@ -2,11 +2,13 @@
 
 from .bundle import build_layer_grid_layout, build_manifest
 from .pytorch import PyTorchMoELayerCaptureInput, build_token_complete_event_from_pytorch
+from .pytorch_recorder import PyTorchRunBundleRecorder
 from .raw_trace import MoELayerCaptureInput, build_moe_layer_trace, build_token_complete_event
 
 __all__ = [
     "MoELayerCaptureInput",
     "PyTorchMoELayerCaptureInput",
+    "PyTorchRunBundleRecorder",
     "build_layer_grid_layout",
     "build_manifest",
     "build_moe_layer_trace",
