@@ -6,6 +6,7 @@ from collections.abc import Sequence
 import math
 
 from inferoscope.formats import is_rfc3339_datetime
+from inferoscope.run_ids import run_id_path
 
 
 def _validate_created_at(created_at: str) -> None:
@@ -33,6 +34,7 @@ def build_manifest(
 
     if not run_id:
         raise ValueError("run_id must not be empty")
+    run_id_path(run_id)
     _validate_created_at(created_at)
     if not model_id:
         raise ValueError("model_id must not be empty")
@@ -76,6 +78,7 @@ def build_layer_grid_layout(
 
     if not run_id:
         raise ValueError("run_id must not be empty")
+    run_id_path(run_id)
     if not layout_id:
         raise ValueError("layout_id must not be empty")
     if not layer_expert_counts:

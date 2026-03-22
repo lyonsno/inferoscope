@@ -52,6 +52,21 @@ class BuildManifestTests(unittest.TestCase):
                 derivation_config_id="motifs/default-alpha",
             )
 
+    def test_build_manifest_rejects_non_canonical_run_id_path(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^run_id must be a canonical relative path with non-empty segments\.$",
+        ):
+            build_manifest(
+                run_id="../evil",
+                created_at="2026-03-20T12:00:00Z",
+                model_id="allenai/OLMoE-1B-7B-0125",
+                tokenizer_id="allenai/OLMoE-1B-7B-0125",
+                prompt_text="hello",
+                derivation_version="motifs/v0.1.0-alpha",
+                derivation_config_id="motifs/default-alpha",
+            )
+
     def test_build_manifest_rejects_non_datetime_created_at(self) -> None:
         with self.assertRaisesRegex(ValueError, "created_at"):
             build_manifest(
@@ -161,6 +176,17 @@ class BuildLayerGridLayoutTests(unittest.TestCase):
                 run_id="run-001",
                 layout_id="default-grid",
                 layer_expert_counts=[(0, 4), (0, 2)],
+            )
+
+    def test_build_layer_grid_layout_rejects_non_canonical_run_id_path(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^run_id must be a canonical relative path with non-empty segments\.$",
+        ):
+            build_layer_grid_layout(
+                run_id="../evil",
+                layout_id="default-grid",
+                layer_expert_counts=[(0, 4)],
             )
 
     def test_build_layer_grid_layout_rejects_negative_layer_index(self) -> None:

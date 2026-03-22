@@ -325,7 +325,7 @@ def validate_manifest_semantics(
     run_id = manifest.get("run_id")
     if isinstance(run_id, str) and run_id:
         try:
-            run_id_path(run_id)
+            run_id_path(run_id, subject="manifest run_id")
         except ValueError as exc:
             issues.append(
                 _issue(

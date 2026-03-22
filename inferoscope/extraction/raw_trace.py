@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import math
 from typing import Sequence
 
+from inferoscope.run_ids import run_id_path
+
 
 @dataclass(frozen=True)
 class MoELayerCaptureInput:
@@ -85,6 +87,7 @@ def build_token_complete_event(
 
     if not run_id:
         raise ValueError("run_id must not be empty")
+    run_id_path(run_id)
     if token_index < 0:
         raise ValueError("token_index must be non-negative")
     if context_length < 0:

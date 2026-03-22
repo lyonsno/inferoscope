@@ -126,6 +126,28 @@ class BuildTokenCompleteEventTests(unittest.TestCase):
                 ],
             )
 
+    def test_build_token_complete_event_rejects_non_canonical_run_id_path(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^run_id must be a canonical relative path with non-empty segments\.$",
+        ):
+            build_token_complete_event(
+                run_id="../evil",
+                token_index=7,
+                token_id=42,
+                token_text="hello",
+                context_length=99,
+                decode_start_ms=10.0,
+                decode_end_ms=25.5,
+                layer_inputs=[
+                    MoELayerCaptureInput(
+                        layer_index=0,
+                        router_logits=[2.0, 1.0],
+                        num_active_experts=1,
+                    )
+                ],
+            )
+
     def test_build_token_complete_event_rejects_empty_layer_inputs(self) -> None:
         with self.assertRaisesRegex(ValueError, "layer_inputs"):
             build_token_complete_event(

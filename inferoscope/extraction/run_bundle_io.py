@@ -96,7 +96,7 @@ def _raise_for_semantic_issues(
     run_id = manifest.get("run_id")
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("manifest run_id must be a non-empty string")
-    run_id_path(run_id)
+    run_id_path(run_id, subject="manifest run_id")
 
     issues = validate_run_bundle_semantics(
         manifest,
@@ -126,7 +126,7 @@ def write_run_bundle(
     run_id = manifest.get("run_id")
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("manifest run_id must be a non-empty string")
-    validated_run_id_path = run_id_path(run_id)
+    validated_run_id_path = run_id_path(run_id, subject="manifest run_id")
 
     _raise_for_schema_issues(
         manifest,

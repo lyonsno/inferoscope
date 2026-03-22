@@ -4,10 +4,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+README_EXAMPLE_TIMEOUT_SECONDS = 10
 
 
 def extract_section(readme_text: str, heading: str) -> str:
@@ -23,6 +25,24 @@ def extract_first_python_block(section_text: str) -> str:
     if match is None:
         raise AssertionError("missing python code block in README section")
     return match.group("code")
+
+
+def run_quick_example_subprocess() -> subprocess.CompletedProcess[str]:
+    quick_example = extract_section((REPO_ROOT / "README.md").read_text(), "Quick Example")
+    script = extract_first_python_block(quick_example)
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        return subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=tmpdir,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=README_EXAMPLE_TIMEOUT_SECONDS,
+        )
 
 
 class ReadmeContractTests(unittest.TestCase):
@@ -42,24 +62,28 @@ class ReadmeContractTests(unittest.TestCase):
         )
 
     def test_quick_example_python_block_runs_successfully(self) -> None:
-        quick_example = extract_section((REPO_ROOT / "README.md").read_text(), "Quick Example")
-        script = extract_first_python_block(quick_example)
-
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(REPO_ROOT)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            result = subprocess.run(
-                [sys.executable, "-c", script],
-                cwd=tmpdir,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
+        result = run_quick_example_subprocess()
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(result.stdout.strip(), msg="README example should print its output")
         self.assertIn("[0, 1]", result.stdout)
+
+    def test_quick_example_python_block_uses_subprocess_timeout(self) -> None:
+        with patch.object(
+            subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                args=[sys.executable, "-c", "print('ok')"],
+                returncode=0,
+                stdout="/tmp/demo-run\n[0, 1]\n",
+                stderr="",
+            ),
+        ) as run_mock:
+            run_quick_example_subprocess()
+
+        timeout = run_mock.call_args.kwargs.get("timeout")
+        self.assertIsNotNone(timeout, "README quick example subprocess should set a timeout")
+        self.assertGreater(timeout, 0)
 
 
 if __name__ == "__main__":
