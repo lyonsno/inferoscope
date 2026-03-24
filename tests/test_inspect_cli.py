@@ -25,13 +25,14 @@ def build_valid_run_bundle(
     raw_events: list[dict] | None = None,
     layout: dict | None = None,
     include_optional_artifacts: bool = False,
+    prompt_text: str = "hello",
 ) -> Path:
     manifest = build_manifest(
         run_id="run-001",
         created_at="2026-03-22T12:00:00Z",
         model_id="allenai/OLMoE-1B-7B-0125",
         tokenizer_id="allenai/OLMoE-1B-7B-0125",
-        prompt_text="hello",
+        prompt_text=prompt_text,
         derivation_version="motifs/v0.1.0-alpha",
         derivation_config_id="motifs/default-alpha",
         generation_config={"max_new_tokens": 4},
@@ -110,9 +111,16 @@ def build_valid_run_bundle(
 
 
 class InspectCliTests(unittest.TestCase):
-    def run_inspect(self, *args: str, cwd: str | Path) -> subprocess.CompletedProcess[str]:
+    def run_inspect(
+        self,
+        *args: str,
+        cwd: str | Path,
+        env_overrides: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["PYTHONPATH"] = str(REPO_ROOT)
+        if env_overrides is not None:
+            env.update(env_overrides)
         return subprocess.run(
             [sys.executable, "-m", "inferoscope.inspect", *args],
             cwd=cwd,
@@ -202,6 +210,57 @@ class InspectCliTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, msg=result.stderr)
             self.assertIn("layer_expert_counts: 0=4, 1=2", result.stdout)
+
+    def test_inspect_cli_json_outputs_machine_readable_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = build_valid_run_bundle(tmpdir, include_optional_artifacts=True)
+            result = self.run_inspect("--json", str(run_dir), cwd=tmpdir)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertEqual(summary["run_id"], "run-001")
+            self.assertEqual(summary["created_at"], "2026-03-22T12:00:00Z")
+            self.assertEqual(summary["model_id"], "allenai/OLMoE-1B-7B-0125")
+            self.assertEqual(summary["tokenizer_id"], "allenai/OLMoE-1B-7B-0125")
+            self.assertEqual(summary["prompt_text"], "hello")
+            self.assertEqual(summary["raw_events"], 1)
+            self.assertEqual(summary["layers"], 2)
+            self.assertEqual(
+                summary["layer_expert_counts"],
+                [
+                    {"layer_index": 0, "num_total_experts": 4},
+                    {"layer_index": 1, "num_total_experts": 2},
+                ],
+            )
+            self.assertEqual(
+                summary["optional_artifacts"],
+                {"derived": True, "motif_ledger": True, "contingency": True},
+            )
+            self.assertEqual(
+                summary["decode_duration_ms"],
+                {"min": 10.0, "max": 10.0, "avg": 10.0},
+            )
+
+    def test_inspect_cli_human_summary_escapes_multiline_prompt_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = build_valid_run_bundle(tmpdir, prompt_text="line1\nline2")
+            result = self.run_inspect(str(run_dir), cwd=tmpdir)
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertIn('prompt_text: "line1\\nline2"', result.stdout)
+            self.assertNotIn("prompt_text: line1\nline2", result.stdout)
+
+    def test_inspect_cli_human_summary_uses_ascii_safe_prompt_rendering(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = build_valid_run_bundle(tmpdir, prompt_text="cafe\u00e9")
+            result = self.run_inspect(
+                str(run_dir),
+                cwd=tmpdir,
+                env_overrides={"LC_ALL": "C", "PYTHONUTF8": "0"},
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertIn('prompt_text: "cafe\\u00e9"', result.stdout)
 
     def test_inspect_cli_handles_empty_raw_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

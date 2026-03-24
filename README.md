@@ -168,6 +168,21 @@ with TemporaryDirectory() as bundle_root:
 
 That creates and validates a bundle under a temporary directory, so you can paste and rerun the example without cleaning up a previous `run_id`.
 
+## Inspecting Bundles
+
+If you're working from a checkout instead of an installed package, run this from the repo root or set `PYTHONPATH=/path/to/inferoscope` first.
+
+Once a run bundle exists on disk, you can inspect it directly from the command line:
+
+```bash
+python -m inferoscope.inspect /path/to/runs/demo-run
+python -m inferoscope.inspect --json /path/to/runs/demo-run
+```
+
+The default output is meant for quick human checks: provenance, event counts, layer/expert coverage, and optional artifact presence.
+
+`--json` emits the same summary as structured JSON, which makes it easier to plug into scripts, CI, or downstream tooling.
+
 ## PyTorch OLMoE Bridge Example
 
 For generated-token callbacks, `inferoscope` also exposes a recorder-oriented bridge through `PyTorchRunBundleRecorder` and `record_olmoe_generated_token`.
